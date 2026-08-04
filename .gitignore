@@ -1,0 +1,9 @@
+# Dependencies
+node_modules/
+
+# Environment variables (keeps passwords/API keys safe)
+.env
+
+# MacOS junk files (just in case you are on a Mac)
+.DS_Store
+google-credentials.json
