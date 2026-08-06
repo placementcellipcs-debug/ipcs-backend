@@ -278,7 +278,7 @@ const markAttendance = async (req, res) => {
 
         // 1. Validate Time (9:30 AM to :00 PM IST)
         const currentTimeMins = istDate.getHours() * 60 + istDate.getMinutes();
-        const isTimeValid = (currentTimeMins >= (9 * 60 + 30) && currentTimeMins <= (18 * 60));
+        const isTimeValid = (currentTimeMins >= (9 * 60 + 30) && currentTimeMins <= (20 * 60));
 
         // 2. Validate Schedule for Today & Branch
         let isScheduledToday = false;
