@@ -276,9 +276,9 @@ const markAttendance = async (req, res) => {
         const istDate = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
         const dateOnly = `${istDate.getDate().toString().padStart(2, '0')}/${(istDate.getMonth() + 1).toString().padStart(2, '0')}/${istDate.getFullYear()}`;
 
-        // 1. Validate Time (9:30 AM to 7:00 PM IST)
+        // 1. Validate Time (9:30 AM to :00 PM IST)
         const currentTimeMins = istDate.getHours() * 60 + istDate.getMinutes();
-        const isTimeValid = (currentTimeMins >= (9 * 60 + 30) && currentTimeMins <= (19 * 60));
+        const isTimeValid = (currentTimeMins >= (9 * 60 + 30) && currentTimeMins <= (18 * 60));
 
         // 2. Validate Schedule for Today & Branch
         let isScheduledToday = false;
