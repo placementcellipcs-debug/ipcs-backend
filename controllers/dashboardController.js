@@ -1,5 +1,46 @@
 const connectSheet = require('../config/db');
 
+// Add this entire object right here!
+const BRANCH_LOCATIONS = {
+  "Kochi": { lat: 9.9934, lng: 76.2904 }, // Matches your current location
+  "Calicut": { lat: 11.2588, lng: 75.7804 },
+  "Trivandrum": { lat: 8.5241, lng: 76.9366 },
+  "Attingal": { lat: 8.6943, lng: 76.8184 },
+  "Kollam": { lat: 8.8932, lng: 76.6141 },
+  "Kannur": { lat: 11.8745, lng: 75.3704 },
+  "Thrissur": { lat: 10.5276, lng: 76.2144 },
+  "Perinthalmanna": { lat: 10.9760, lng: 76.2254 },
+  "Kottayam": { lat: 9.5916, lng: 76.5222 },
+  "Pathanamthitta": { lat: 9.2648, lng: 76.7870 },
+  "Palakkad": { lat: 10.7867, lng: 76.6548 },
+  "Coimbatore": { lat: 11.0168, lng: 76.9558 },
+  "Chennai": { lat: 13.0827, lng: 80.2707 },
+  "Tambaram": { lat: 12.9249, lng: 80.1000 },
+  "Trichy": { lat: 10.7905, lng: 78.7047 },
+  "Salem": { lat: 11.6643, lng: 78.1460 },
+  "Madurai": { lat: 9.9252, lng: 78.1198 },
+  "Erode": { lat: 11.3410, lng: 77.7172 },
+  "Tirunelveli": { lat: 8.7139, lng: 77.7567 },
+  "Bangalore": { lat: 12.9716, lng: 77.5946 },
+  "Mangalore": { lat: 12.9141, lng: 74.8560 },
+  "Mysore": { lat: 12.2958, lng: 76.6394 },
+  "Mumbai": { lat: 19.0760, lng: 72.8777 },
+  "Pune": { lat: 18.5204, lng: 73.8567 },
+  "Nagpur": { lat: 21.1458, lng: 79.0882 },
+  "Kolkata": { lat: 22.5726, lng: 88.3639 },
+  "Siliguri": { lat: 26.7271, lng: 88.3953 },
+  "Hyderabad (Telangana)": { lat: 17.3850, lng: 78.4867 },
+  "Ranchi (Jharkhand)": { lat: 23.3441, lng: 85.3096 },
+  "Raipur (Chhattisgarh)": { lat: 21.2514, lng: 81.6296 },
+  "Bhopal (Madhya Pradesh)": { lat: 23.2599, lng: 77.4126 },
+  "Dubai (UAE)": { lat: 25.2048, lng: 55.2708 },
+  "Riyadh (Saudi Arabia)": { lat: 24.7136, lng: 46.6753 }
+};
+
+// Helper function to check if a string date matches today
+function isSameDay(dateStr, now) {
+// ... rest of your code
+
 
 // Helper function to check if a string date matches today
 function isSameDay(dateStr, now) {
