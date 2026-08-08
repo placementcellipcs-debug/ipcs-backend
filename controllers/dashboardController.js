@@ -117,12 +117,23 @@ const getDashboardData = async (req, res) => {
 
         let events = [];
         try {
-            const eventSheet = await googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: "Event!A:G" });
+            // Extended range to A:I to fetch Column I (Drive ID)
+            const eventSheet = await googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: "Event!A:I" });
             const evData = eventSheet.data.values || [];
             for (let i = 1; i < evData.length; i++) {
                 let evBranch = (evData[i][1] || "all").toLowerCase();
                 if (evBranch.includes("all") || evBranch.includes((branch || "Bangalore").toLowerCase())) {
-                    events.push({ date: evData[i][0] || "TBA", title: evData[i][3] || "Event", description: evData[i][4] || "", time: evData[i][5] || "", location: evData[i][6] || "", type: evData[i][2] || "GENERAL" });
+                    events.push({ 
+                        date: evData[i][0] || "TBA", 
+                        branch: evData[i][1] || "All",
+                        type: evData[i][2] || "GENERAL",
+                        title: evData[i][3] || "Event", 
+                        description: evData[i][4] || "", 
+                        time: evData[i][5] || "", 
+                        location: evData[i][6] || "",
+                        posterLink: evData[i][7] || "",
+                        driveId: evData[i][8] || `DRK-${1000 + i}` // Column I (Drive ID)
+                    });
                 }
             }
         } catch(e) {}
