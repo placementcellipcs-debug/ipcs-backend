@@ -320,11 +320,6 @@ const updateProfile = async (req, res) => {
     } catch (error) { res.status(500).json({ success: false, message: "Failed to update profile." }); }
 };
 
-const connectSheet = require('../config/db');
-const axios = require('axios'); // <-- ADD THIS LINE AT THE TOP
-
-// ... [Keep your BRANCH_LOCATIONS, isSameDay, getDashboardData, etc.] ...
-
 const uploadDocument = async (req, res) => {
     try {
         const { email, rollNo, base64, docType } = req.body;
@@ -352,7 +347,6 @@ const uploadDocument = async (req, res) => {
             return res.status(500).json({ success: false, message: result.message || "Drive upload failed in Apps Script" });
         }
 
-        // Apps Script automatically updated the sheet, so we just return success!
         res.status(200).json({ success: true, message: `${docType} uploaded successfully!`, url: result.url });
     } catch (error) { 
         console.error("Upload error details:", error.response?.data || error.message);
@@ -360,7 +354,6 @@ const uploadDocument = async (req, res) => {
     }
 };
 
-// ... [Keep updatePassword, submitIssue, module.exports] ...
 const updatePassword = async (req, res) => {
     try {
         const { email, currentPassword, newPassword } = req.body;
