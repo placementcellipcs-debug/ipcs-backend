@@ -1,5 +1,6 @@
 const connectSheet = require('../config/db');
 const jwt = require('jsonwebtoken');
+const axios = require('axios');
 
 const loginUser = async (req, res) => {
     try {
@@ -75,19 +76,18 @@ const registerUser = async (req, res) => {
         let photoUrl = "";
         if (formData.photoBase64) {
              try {
-                 const photoResponse = await fetch(process.env.APPS_SCRIPT_PHOTO_URL, {
-                     method: 'POST',
-                     body: JSON.stringify({
-                         action: "uploadOnly",
-                         base64: formData.photoBase64.replace(/^data:image\/\w+;base64,/, ""),
-                         filename: `${formData.rollNo}_Profile.jpg`,
-                         folderName: "Profile Photo",
-                         mimeType: "image/jpeg"
-                     })
+                 const photoResponse = await axios.post(process.env.APPS_SCRIPT_PHOTO_URL, {
+                     action: "uploadOnly",
+                     base64: formData.photoBase64.replace(/^data:image\/\w+;base64,/, ""),
+                     filename: `${formData.rollNo}_Profile.jpg`,
+                     folderName: "Profile Photo",
+                     mimeType: "image/jpeg"
                  });
-                 const photoResult = await photoResponse.json();
-                 if (photoResult.success) photoUrl = photoResult.url;
-             } catch(e) { console.log("Photo upload failed:", e); }
+                 
+                 if (photoResponse.data.success) {
+                     photoUrl = photoResponse.data.url;
+                 }
+             } catch(e) { console.log("Photo upload failed:", e.message); }
         }
 
         const newRow = [

@@ -319,6 +319,11 @@ const updateProfile = async (req, res) => {
     } catch (error) { res.status(500).json({ success: false, message: "Failed to update profile." }); }
 };
 
+const connectSheet = require('../config/db');
+const axios = require('axios'); // <-- ADD THIS LINE AT THE TOP
+
+// ... [Keep your BRANCH_LOCATIONS, isSameDay, getDashboardData, etc.] ...
+
 const uploadDocument = async (req, res) => {
     try {
         const { email, rollNo, base64, docType } = req.body;
@@ -331,28 +336,30 @@ const uploadDocument = async (req, res) => {
         // Determine which Apps Script function to trigger
         const action = docType === 'Photo' ? 'updateProfilePhoto' : 'updateDocument';
 
-        // Send the payload to your new Apps Script
-        const response = await fetch(process.env.APPS_SCRIPT_PHOTO_URL, {
-            method: 'POST', 
-            body: JSON.stringify({ 
-                action: action,
-                email: email, 
-                rollNo: rollNo,
-                base64: base64Clean, 
-                docType: docType 
-            })
+        // Use Axios instead of fetch to securely handle Google's redirects
+        const response = await axios.post(process.env.APPS_SCRIPT_PHOTO_URL, { 
+            action: action,
+            email: email, 
+            rollNo: rollNo,
+            base64: base64Clean, 
+            docType: docType 
         });
         
-        const result = await response.json();
-        if (!result.success) return res.status(500).json({ success: false, message: result.message || "Drive upload failed" });
+        const result = response.data;
+        
+        if (!result.success) {
+            return res.status(500).json({ success: false, message: result.message || "Drive upload failed in Apps Script" });
+        }
 
         // Apps Script automatically updated the sheet, so we just return success!
         res.status(200).json({ success: true, message: `${docType} uploaded successfully!`, url: result.url });
     } catch (error) { 
-        console.error(error);
-        res.status(500).json({ success: false, message: "Failed to upload document." }); 
+        console.error("Upload error details:", error.response?.data || error.message);
+        res.status(500).json({ success: false, message: "Node server failed to reach Google Apps Script." }); 
     }
 };
+
+// ... [Keep updatePassword, submitIssue, module.exports] ...
 const updatePassword = async (req, res) => {
     try {
         const { email, currentPassword, newPassword } = req.body;
