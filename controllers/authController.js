@@ -78,10 +78,11 @@ const registerUser = async (req, res) => {
                  const photoResponse = await fetch(process.env.APPS_SCRIPT_PHOTO_URL, {
                      method: 'POST',
                      body: JSON.stringify({
+                         action: "uploadOnly",
                          base64: formData.photoBase64.replace(/^data:image\/\w+;base64,/, ""),
                          filename: `${formData.rollNo}_Profile.jpg`,
-                         // Route directly to the Profile Photo folder
-                         folderId: process.env.PROFILE_FOLDER_ID || process.env.DRIVE_FOLDER_ID 
+                         folderName: "Profile Photo",
+                         mimeType: "image/jpeg"
                      })
                  });
                  const photoResult = await photoResponse.json();

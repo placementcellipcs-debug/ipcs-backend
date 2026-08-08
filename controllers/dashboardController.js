@@ -322,45 +322,37 @@ const updateProfile = async (req, res) => {
 const uploadDocument = async (req, res) => {
     try {
         const { email, rollNo, base64, docType } = req.body;
-        const { googleSheets, auth } = await connectSheet();
-        const spreadsheetId = process.env.SPREADSHEET_ID;
+        
+        // Clean the base64 string
+        const base64Clean = docType === 'Photo' 
+            ? base64.replace(/^data:image\/\w+;base64,/, "") 
+            : base64.replace(/^data:application\/pdf;base64,/, "");
+        
+        // Determine which Apps Script function to trigger
+        const action = docType === 'Photo' ? 'updateProfilePhoto' : 'updateDocument';
 
-        const getRows = await googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: "Data!A:E" });
-        const rows = getRows.data.values || [];
-        let targetRowIndex = -1;
-        for (let i = 0; i < rows.length; i++) {
-            if (rows[i][3] && rows[i][3].toLowerCase() === email.toLowerCase()) { targetRowIndex = i + 1; break; }
-        }
-        if (targetRowIndex === -1) return res.status(404).json({ success: false, message: "User not found" });
-
-        const filename = docType === 'Photo' ? `${rollNo}_Profile.jpg` : `${rollNo}_${docType}.pdf`;
-        const base64Clean = docType === 'Photo' ? base64.replace(/^data:image\/\w+;base64,/, "") : base64.replace(/^data:application\/pdf;base64,/, "");
-       
-        // --- DYNAMIC FOLDER ROUTING ---
-        let targetFolderId = process.env.DRIVE_FOLDER_ID; // Fallback
-        if (docType === 'Photo') targetFolderId = process.env.PROFILE_FOLDER_ID;
-        if (docType === 'Resume') targetFolderId = process.env.RESUME_FOLDER_ID;
-        if (docType === 'Certificate') targetFolderId = process.env.CERTIFICATE_FOLDER_ID;
-
+        // Send the payload to your new Apps Script
         const response = await fetch(process.env.APPS_SCRIPT_PHOTO_URL, {
-            method: 'POST', body: JSON.stringify({ base64: base64Clean, filename: filename, folderId: targetFolderId })
+            method: 'POST', 
+            body: JSON.stringify({ 
+                action: action,
+                email: email, 
+                rollNo: rollNo,
+                base64: base64Clean, 
+                docType: docType 
+            })
         });
         
         const result = await response.json();
-        if (!result.success) return res.status(500).json({ success: false, message: "Drive upload failed" });
+        if (!result.success) return res.status(500).json({ success: false, message: result.message || "Drive upload failed" });
 
-        let col = 'AC';
-        if (docType === 'Resume') col = 'V';
-        else if (docType === 'Photo') col = 'J';
-
-        await googleSheets.spreadsheets.values.update({
-            auth, spreadsheetId, range: `Data!${col}${targetRowIndex}`, valueInputOption: "USER_ENTERED", resource: { values: [[result.url]] }
-        });
-
+        // Apps Script automatically updated the sheet, so we just return success!
         res.status(200).json({ success: true, message: `${docType} uploaded successfully!`, url: result.url });
-    } catch (error) { res.status(500).json({ success: false, message: "Failed to upload document." }); }
+    } catch (error) { 
+        console.error(error);
+        res.status(500).json({ success: false, message: "Failed to upload document." }); 
+    }
 };
-
 const updatePassword = async (req, res) => {
     try {
         const { email, currentPassword, newPassword } = req.body;
