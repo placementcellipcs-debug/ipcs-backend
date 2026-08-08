@@ -184,13 +184,20 @@ const getDashboardData = async (req, res) => {
             }
         } catch (e) {}
 
-        let tpoInfo = { name: "Placement Officer", email: "placement@ipcsglobal.com", phone: "N/A", sittingBranch: "N/A" };
+        let tpoInfo = { name: "Placement Officer", email: "placement@ipcsglobal.com", phone: "N/A", sittingBranch: "N/A", assignedBranches: "N/A", profilePhoto: "" };
         try {
             const contactSheet = await googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: "Contact!A:H" });
             const contactData = contactSheet.data.values || [];
             for (let k = 1; k < contactData.length; k++) {
                 if ((contactData[k][4] || "").toLowerCase().includes((branch || "Bangalore").toLowerCase())) {
-                    tpoInfo = { name: contactData[k][0] || "Placement Officer", phone: contactData[k][1] || "N/A", email: contactData[k][2] || "placement@ipcsglobal.com", sittingBranch: contactData[k][3] || "N/A" };
+                    tpoInfo = { 
+                        name: contactData[k][0] || "Placement Officer", 
+                        phone: contactData[k][1] || "N/A", 
+                        email: contactData[k][2] || "placement@ipcsglobal.com", 
+                        sittingBranch: contactData[k][3] || "N/A",
+                        assignedBranches: contactData[k][4] || "N/A", 
+                        profilePhoto: contactData[k][6] || ""         
+                    };
                     break;
                 }
             }
