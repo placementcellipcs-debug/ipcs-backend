@@ -1,13 +1,18 @@
 const express = require('express');
 const router = express.Router();
-const { getDashboardData, markAttendance, applyForJob, updateProfile, uploadDocument, updatePassword, submitIssue } = require('../controllers/dashboardController');
+const dashboardController = require('../controllers/dashboardController');
 
-router.post('/data', getDashboardData);
-router.post('/attendance', markAttendance);
-router.post('/apply', applyForJob);
-router.post('/profile/update', updateProfile);
-router.post('/profile/document', uploadDocument);
-router.post('/profile/password', updatePassword);
-router.post('/support/issue', submitIssue);
+// Dashboard endpoints
+router.post('/data', dashboardController.getDashboardData);
+router.post('/attendance', dashboardController.markAttendance);
+router.post('/apply', dashboardController.applyForJob);
+
+// Profile & Settings endpoints
+router.post('/profile/update', dashboardController.updateProfile);
+router.post('/profile/document', dashboardController.uploadDocument);
+router.post('/profile/password', dashboardController.updatePassword);
+
+// Support
+router.post('/support/issue', dashboardController.submitIssue);
 
 module.exports = router;
