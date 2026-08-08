@@ -10,6 +10,24 @@ const dashboardRoutes = require('./routes/dashboardRoutes');
 dotenv.config();
 
 const app = express();
+
+const allowedOrigins = [
+  'https://placement.ipcsglobal.info',
+  'http://localhost:5173',
+  'http://localhost:3000'
+];
+
+app.use(cors({
+  origin: function (origin, callback) {
+    if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      callback(null, true); // Fallback allowing requests if strict domain matching is not required
+    }
+  },
+  credentials: true
+}));
+
 app.use(express.json({ limit: '50mb' })); 
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use(cors());

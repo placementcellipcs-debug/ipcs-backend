@@ -7,6 +7,9 @@ router.post('/data', dashboardController.getDashboardData);
 router.post('/attendance', dashboardController.markAttendance);
 router.post('/apply', dashboardController.applyForJob);
 
+// NEW: Event Registration Endpoint
+router.post('/drive-response', dashboardController.submitDriveResponse); // <--- ADD THIS LINE
+
 // Profile & Settings endpoints
 router.post('/profile/update', dashboardController.updateProfile);
 router.post('/profile/document', dashboardController.uploadDocument);

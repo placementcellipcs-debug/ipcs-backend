@@ -397,5 +397,42 @@ const submitIssue = async (req, res) => {
         res.status(200).json({ success: true, message: "Issue reported successfully!" });
     } catch (error) { res.status(500).json({ success: false, message: "Failed to submit issue." }); }
 };
+const submitDriveResponse = async (req, res) => {
+    try {
+        const { driveId, title, name, phone, email, course, branch, qualification, resume, status } = req.body;
+        const { googleSheets, auth } = await connectSheet();
+        const spreadsheetId = process.env.SPREADSHEET_ID;
+        
+        // Get IST Timestamp
+        const timestamp = new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" });
 
-module.exports = { getDashboardData, markAttendance, applyForJob, updateProfile, uploadDocument, updatePassword, submitIssue };
+        // Append to 'Drive_Registration' sheet matching your columns A through J
+        await googleSheets.spreadsheets.values.append({
+            auth, 
+            spreadsheetId, 
+            range: "Drive_Registration!A:J", 
+            valueInputOption: "USER_ENTERED",
+            resource: { 
+                values: [[
+                    driveId || title || "N/A", 
+                    name || "N/A", 
+                    phone || "N/A", 
+                    email || "N/A", 
+                    course || "N/A", 
+                    branch || "N/A", 
+                    resume || "N/A", 
+                    qualification || "N/A", 
+                    status || "N/A",
+                    timestamp
+                ]] 
+            },
+        });
+
+        res.status(200).json({ success: true, message: `Status recorded: ${status}` });
+    } catch (error) {
+        console.error("Error recording drive response:", error);
+        res.status(500).json({ success: false, message: 'Failed to record response.' });
+    }
+};
+
+module.exports = { getDashboardData, markAttendance, applyForJob, updateProfile, uploadDocument, updatePassword, submitIssue, submitDriveResponse };
