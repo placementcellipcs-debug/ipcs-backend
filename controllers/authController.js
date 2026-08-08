@@ -80,7 +80,8 @@ const registerUser = async (req, res) => {
                      body: JSON.stringify({
                          base64: formData.photoBase64.replace(/^data:image\/\w+;base64,/, ""),
                          filename: `${formData.rollNo}_Profile.jpg`,
-                         folderId: process.env.DRIVE_FOLDER_ID
+                         // Route directly to the Profile Photo folder
+                         folderId: process.env.PROFILE_FOLDER_ID || process.env.DRIVE_FOLDER_ID 
                      })
                  });
                  const photoResult = await photoResponse.json();

@@ -336,9 +336,16 @@ const uploadDocument = async (req, res) => {
         const filename = docType === 'Photo' ? `${rollNo}_Profile.jpg` : `${rollNo}_${docType}.pdf`;
         const base64Clean = docType === 'Photo' ? base64.replace(/^data:image\/\w+;base64,/, "") : base64.replace(/^data:application\/pdf;base64,/, "");
        
+        // --- DYNAMIC FOLDER ROUTING ---
+        let targetFolderId = process.env.DRIVE_FOLDER_ID; // Fallback
+        if (docType === 'Photo') targetFolderId = process.env.PROFILE_FOLDER_ID;
+        if (docType === 'Resume') targetFolderId = process.env.RESUME_FOLDER_ID;
+        if (docType === 'Certificate') targetFolderId = process.env.CERTIFICATE_FOLDER_ID;
+
         const response = await fetch(process.env.APPS_SCRIPT_PHOTO_URL, {
-            method: 'POST', body: JSON.stringify({ base64: base64Clean, filename: filename, folderId: process.env.DRIVE_FOLDER_ID })
+            method: 'POST', body: JSON.stringify({ base64: base64Clean, filename: filename, folderId: targetFolderId })
         });
+        
         const result = await response.json();
         if (!result.success) return res.status(500).json({ success: false, message: "Drive upload failed" });
 
