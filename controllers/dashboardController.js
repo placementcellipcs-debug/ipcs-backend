@@ -117,7 +117,6 @@ const getDashboardData = async (req, res) => {
 
         let events = [];
         try {
-            // INCREASED RANGE TO I TO CAPTURE COLUMN I (DRIVE ID)
             const eventSheet = await googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: "Event!A:I" });
             const evData = eventSheet.data.values || [];
             for (let i = 1; i < evData.length; i++) {
@@ -125,13 +124,28 @@ const getDashboardData = async (req, res) => {
                 if (evBranch.includes("all") || evBranch.includes((branch || "Bangalore").toLowerCase())) {
                     events.push({ 
                         date: evData[i][0] || "TBA", 
+                        branch: evData[i][1] || "All",
+                        type: evData[i][2] || "GENERAL",
                         title: evData[i][3] || "Event", 
                         description: evData[i][4] || "", 
                         time: evData[i][5] || "", 
-                        location: evData[i][6] || "", 
-                        type: evData[i][2] || "GENERAL",
-                        id: evData[i][8] || "" // <--- NOW FETCHING THE DRIVE ID
+                        location: evData[i][6] || "",
+                        posterLink: evData[i][7] || "",
+                        id: evData[i][8] || `DRK-${1000 + i}`,
+                        driveId: evData[i][8] || `DRK-${1000 + i}`
                     });
+                }
+            }
+        } catch(e) {}
+
+        // --- NEW: FETCH EVENT REGISTRATION HISTORY ---
+        let driveRSVPs = [];
+        try {
+            const driveSheet = await googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: "Drive_Registration!A:J" });
+            const driveData = driveSheet.data.values || [];
+            for (let i = 1; i < driveData.length; i++) {
+                if (driveData[i][3] && driveData[i][3].toLowerCase() === email.toLowerCase()) {
+                    driveRSVPs.push({ driveId: driveData[i][0] || "", status: driveData[i][8] || "" });
                 }
             }
         } catch(e) {}
@@ -212,7 +226,7 @@ const getDashboardData = async (req, res) => {
             }
         } catch (e) {}
 
-        res.status(200).json({ success: true, userInfo, stats, appliedJobs, events, attendanceHistory, isScheduledToday, hasMarkedToday, vacancies, tpoInfo });
+        res.status(200).json({ success: true, userInfo, stats, appliedJobs, events, attendanceHistory, isScheduledToday, hasMarkedToday, vacancies, tpoInfo, driveRSVPs });
     } catch (error) { res.status(500).json({ success: false, message: "Server Error fetching dashboard." }); }
 };
 
@@ -340,15 +354,12 @@ const uploadDocument = async (req, res) => {
     try {
         const { email, rollNo, base64, docType } = req.body;
         
-        // Clean the base64 string
         const base64Clean = docType === 'Photo' 
             ? base64.replace(/^data:image\/\w+;base64,/, "") 
             : base64.replace(/^data:application\/pdf;base64,/, "");
         
-        // Determine which Apps Script function to trigger
         const action = docType === 'Photo' ? 'updateProfilePhoto' : 'updateDocument';
 
-        // Use Axios instead of fetch to securely handle Google's redirects
         const response = await axios.post(process.env.APPS_SCRIPT_PHOTO_URL, { 
             action: action,
             email: email, 
@@ -406,16 +417,32 @@ const submitIssue = async (req, res) => {
         res.status(200).json({ success: true, message: "Issue reported successfully!" });
     } catch (error) { res.status(500).json({ success: false, message: "Failed to submit issue." }); }
 };
+
 const submitDriveResponse = async (req, res) => {
     try {
         const { driveId, title, name, phone, email, course, branch, qualification, resume, status } = req.body;
         const { googleSheets, auth } = await connectSheet();
         const spreadsheetId = process.env.SPREADSHEET_ID;
         
+        const targetDriveId = driveId || title || "N/A";
+
+        // Check if the student has already responded to this drive
+        try {
+            const checkSheet = await googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: "Drive_Registration!A:D" });
+            const rows = checkSheet.data.values || [];
+            for (let i = 1; i < rows.length; i++) {
+                if (rows[i][0] === targetDriveId && rows[i][3] && rows[i][3].toLowerCase() === email.toLowerCase()) {
+                    return res.status(400).json({ success: false, message: 'You have already submitted a response for this drive.' });
+                }
+            }
+        } catch (e) {
+            // Sheet might be empty, proceed safely
+        }
+
         // Get IST Timestamp
         const timestamp = new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" });
 
-        // Append to 'Drive_Registration' sheet matching your columns A through J
+        // Append to 'Drive_Registration' sheet matching columns A through J
         await googleSheets.spreadsheets.values.append({
             auth, 
             spreadsheetId, 
@@ -423,7 +450,7 @@ const submitDriveResponse = async (req, res) => {
             valueInputOption: "USER_ENTERED",
             resource: { 
                 values: [[
-                    driveId || title || "N/A", 
+                    targetDriveId, 
                     name || "N/A", 
                     phone || "N/A", 
                     email || "N/A", 
@@ -437,7 +464,7 @@ const submitDriveResponse = async (req, res) => {
             },
         });
 
-        res.status(200).json({ success: true, message: `Status recorded: ${status}` });
+        res.status(200).json({ success: true, message: `Status updated to: ${status}` });
     } catch (error) {
         console.error("Error recording drive response:", error);
         res.status(500).json({ success: false, message: 'Failed to record response.' });
