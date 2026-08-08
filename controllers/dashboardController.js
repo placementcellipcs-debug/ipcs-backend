@@ -65,12 +65,13 @@ const getDashboardData = async (req, res) => {
             const dataSheet = await googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: "Data!A:AD" });
             const userDataRows = dataSheet.data.values || [];
             for (let i = 1; i < userDataRows.length; i++) {
-                if (userDataRows[i][3] && userDataRows[i][3].toLowerCase() === email.toLowerCase()) {
+                if (userDataRows[i][3] && userDataRows[i][3].toString().trim().toLowerCase() === email.toString().trim().toLowerCase()) {
                     userInfo = {
                         name: userDataRows[i][1] || "Student",
                         phone: userDataRows[i][2] || "N/A",
                         email: userDataRows[i][3] || email,
                         rollNo: userDataRows[i][5] || "N/A",
+                        joiningDate: userDataRows[i][6] || "N/A", // Added index 6
                         course: userDataRows[i][7] || "N/A",
                         branch: userDataRows[i][8] || "Bangalore",
                         photo: userDataRows[i][9] || "",
@@ -93,13 +94,14 @@ const getDashboardData = async (req, res) => {
                         age: userDataRows[i][26] || "N/A",
                         gender: userDataRows[i][27] || "N/A",
                         certificate: userDataRows[i][28] || "N/A",
-                        vacancyOpen: userDataRows[i][29] || "No"
+                        vacancyOpen: userDataRows[i][29] || "Yes"
                     };
                     break;
                 }
             }
         } catch(e) {}
 
+        // Keep appliedJobs, events, driveRSVPs, attendanceHistory, vacancies logic identical...
         let appliedJobs = [], stats = { applied: 0, interviews: 0, offers: 0, attended: 0, totalConducted: 0, onLeave: 0 };
         try {
             const applySheet = await googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: "Opening_Applied!A:O" });
@@ -138,7 +140,6 @@ const getDashboardData = async (req, res) => {
             }
         } catch(e) {}
 
-        // --- NEW: FETCH EVENT REGISTRATION HISTORY ---
         let driveRSVPs = [];
         try {
             const driveSheet = await googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: "Drive_Registration!A:J" });
@@ -212,7 +213,11 @@ const getDashboardData = async (req, res) => {
             const contactSheet = await googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: "Contact!A:H" });
             const contactData = contactSheet.data.values || [];
             for (let k = 1; k < contactData.length; k++) {
-                if ((contactData[k][4] || "").toLowerCase().includes((branch || "Bangalore").toLowerCase())) {
+                const assigned = (contactData[k][4] || "").toLowerCase();
+                const sitting = (contactData[k][3] || "").toLowerCase();
+                const studentBranch = (branch || userInfo.branch || "Bangalore").toLowerCase();
+
+                if (assigned.includes(studentBranch) || sitting.includes(studentBranch)) {
                     tpoInfo = { 
                         name: contactData[k][0] || "Placement Officer", 
                         phone: contactData[k][1] || "N/A", 
@@ -228,6 +233,76 @@ const getDashboardData = async (req, res) => {
 
         res.status(200).json({ success: true, userInfo, stats, appliedJobs, events, attendanceHistory, isScheduledToday, hasMarkedToday, vacancies, tpoInfo, driveRSVPs });
     } catch (error) { res.status(500).json({ success: false, message: "Server Error fetching dashboard." }); }
+};
+
+const updateProfile = async (req, res) => {
+    try {
+        const { email, age, gender, studyStatus, completedDate, stream, homeTown, fresherStatus, qualification, linkedin, instagram, placementReq, parentName, parentContact } = req.body;
+        const { googleSheets, auth } = await connectSheet();
+        const spreadsheetId = process.env.SPREADSHEET_ID;
+
+        const getRows = await googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: "Data!A:E" });
+        const rows = getRows.data.values || [];
+        let targetRowIndex = -1;
+        for (let i = 0; i < rows.length; i++) {
+            if (rows[i][3] && rows[i][3].toString().trim().toLowerCase() === email.toString().trim().toLowerCase()) { targetRowIndex = i + 1; break; }
+        }
+        if (targetRowIndex === -1) return res.status(404).json({ success: false, message: "User not found." });
+
+        await googleSheets.spreadsheets.values.batchUpdate({
+            auth, spreadsheetId,
+            resource: {
+                valueInputOption: "USER_ENTERED",
+                data: [
+                    { range: `Data!K${targetRowIndex}:Q${targetRowIndex}`, values: [[homeTown || "N/A", qualification || "N/A", stream || "N/A", fresherStatus || "N/A", linkedin || "N/A", instagram || "N/A", placementReq || "N/A"]] },
+                    { range: `Data!W${targetRowIndex}:X${targetRowIndex}`, values: [[parentName || "N/A", parentContact || "N/A"]] },
+                    { range: `Data!Y${targetRowIndex}:Z${targetRowIndex}`, values: [[studyStatus || "Currently Studying", completedDate || "N/A"]] },
+                    { range: `Data!AA${targetRowIndex}:AB${targetRowIndex}`, values: [[age || "N/A", gender || "N/A"]] }
+                ]
+            }
+        });
+
+        const updatedRow = await googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: `Data!A${targetRowIndex}:AD${targetRowIndex}` });
+        const user = updatedRow.data.values[0];
+
+        res.status(200).json({ success: true, message: "Profile updated successfully!", user: {
+            homeTown: user[10] || "N/A", qualification: user[11] || "N/A", stream: user[12] || "N/A",
+            fresherStatus: user[13] || "N/A", linkedin: user[14] || "N/A", instagram: user[15] || "N/A",
+            placementReq: user[16] || "N/A", parentName: user[22] || "N/A", parentContact: user[23] || "N/A",
+            studyStatus: user[24] || "Currently Studying", completedDate: user[25] || "N/A", age: user[26] || "N/A", gender: user[27] || "N/A"
+        } });
+    } catch (error) { res.status(500).json({ success: false, message: "Failed to update profile." }); }
+};
+
+const uploadDocument = async (req, res) => {
+    try {
+        const { email, rollNo, base64, docType } = req.body;
+        
+        const base64Clean = docType === 'Photo' 
+            ? base64.replace(/^data:image\/\w+;base64,/, "") 
+            : base64.replace(/^data:application\/pdf;base64,/, "");
+        
+        const action = docType === 'Photo' ? 'updateProfilePhoto' : 'updateDocument';
+
+        const response = await axios.post(process.env.APPS_SCRIPT_PHOTO_URL, { 
+            action: action,
+            email: email, 
+            rollNo: rollNo,
+            base64: base64Clean, 
+            docType: docType 
+        }, { timeout: 30000 });
+        
+        const result = response.data;
+        
+        if (!result || !result.success) {
+            return res.status(500).json({ success: false, message: result?.message || "Drive upload failed in Apps Script" });
+        }
+
+        res.status(200).json({ success: true, message: `${docType} uploaded successfully!`, url: result.url });
+    } catch (error) { 
+        console.error("Upload error details:", error.response?.data || error.message);
+        res.status(500).json({ success: false, message: error.response?.data?.message || "Node server failed to reach Google Apps Script." }); 
+    }
 };
 
 const markAttendance = async (req, res) => {

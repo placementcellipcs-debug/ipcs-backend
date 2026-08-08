@@ -29,6 +29,7 @@ const loginUser = async (req, res) => {
             phone: foundUser[2] || "N/A",
             email: foundUser[3] || email,
             rollNo: foundUser[5] || "N/A",
+            joiningDate: foundUser[6] || "N/A", // Added index 6
             course: foundUser[7] || "N/A",
             branch: foundUser[8] || "Bangalore",
             photo: foundUser[9] || "",
@@ -51,7 +52,7 @@ const loginUser = async (req, res) => {
             age: foundUser[26] || "N/A",
             gender: foundUser[27] || "N/A",
             certificate: foundUser[28] || "N/A",
-            vacancyOpen: foundUser[29] || "No"
+            vacancyOpen: foundUser[29] || "Yes"
         };
 
         const token = jwt.sign({ email: userObj.email, rollNo: userObj.rollNo, branch: userObj.branch }, process.env.JWT_SECRET || 'super_secret_key_for_ipcs_portal_2026', { expiresIn: '7d' });
