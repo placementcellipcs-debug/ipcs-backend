@@ -11,13 +11,12 @@ dotenv.config();
 
 const app = express();
 
-// --- 1. CORS CONFIGURATION FOR PRODUCTION & LOCALHOST ---
+// --- ALLOW FRONTEND ORIGINS ---
 const allowedOrigins = [
   'https://placement.ipcsglobal.info',
   'http://placement.ipcsglobal.info',
   'http://localhost:5173',
-  'http://localhost:3000',
-  'http://localhost:5000'
+  'http://localhost:3000'
 ];
 
 app.use(cors({
@@ -25,7 +24,7 @@ app.use(cors({
     if (!origin || allowedOrigins.indexOf(origin) !== -1) {
       callback(null, true);
     } else {
-      callback(null, true); // Permissive fallback
+      callback(null, true);
     }
   },
   credentials: true,
@@ -38,7 +37,6 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 connectSheet();
 
-// --- 2. NODEMAILER TRANSPORTER ---
 const transporter = nodemailer.createTransport({
     service: 'gmail',
     auth: {
@@ -54,21 +52,18 @@ app.get('/', (req, res) => {
     res.send('IPCS Portal Backend connected to Google Sheets!');
 });
 
-// --- 3. PLACEMENT DRIVE RESPONSE & EMAIL ENDPOINT ---
 app.post('/api/dashboard/drive-response', async (req, res) => {
   const { driveId, title, name, phone, email, course, branch, resume, qualification, status, tpoBranch } = req.body;
 
   try {
-    // Append to 'Drive_Registration' sheet
     await axios.post(process.env.APPS_SCRIPT_URL, {
       action: 'recordDriveResponse',
       data: {
-        driveId: driveId || 'N/A', // Includes Drive ID for easy TPO sorting
+        driveId: driveId || 'N/A',
         name, phone, email, course, branch, resume, qualification, status
       }
     });
 
-    // Send invitation email if registered
     if (status === 'Registered') {
       let tpoEmail = "placement@ipcsglobal.com"; 
       if (tpoBranch && tpoBranch.toLowerCase().includes('bangalore')) {
