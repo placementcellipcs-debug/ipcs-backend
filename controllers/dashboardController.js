@@ -16,7 +16,7 @@ const BRANCH_LOCATIONS = {
   "Coimbatore": { lat: 11.0168, lng: 76.9558 },
   "Chennai": { lat: 13.048633, lng: 80.208111 },
   "Tambaram": { lat: 12.9249, lng: 80.1000 },
-  "Trichy": { lat: 10.7905, lng: 78.7047 },
+  "Trichy": { lat: 10.832903, lng: 78.693117 },
   "Salem": { lat: 11.6643, lng: 78.1460 },
   "Madurai": { lat: 9.944061, lng: 78.141930 },
   "Erode": { lat: 11.3410, lng: 77.7172 },
