@@ -7,18 +7,18 @@ const BRANCH_LOCATIONS = {
   "Trivandrum": { lat: 8.488688, lng: 76.949653 },
   "Attingal": { lat: 8.6943, lng: 76.8184 },
   "Kollam": { lat: 8.8932, lng: 76.6141 },
-  "Kannur": { lat: 11.8745, lng: 75.3704 },
+  "Kannur": { lat: 11.874601, lng: 75.380053 },
   "Thrissur": { lat: 10.5276, lng: 76.2144 },
   "Perinthalmanna": { lat: 10.9760, lng: 76.2254 },
   "Kottayam": { lat: 9.5916, lng: 76.5222 },
-  "Pathanamthitta": { lat: 9.2648, lng: 76.7870 },
+  "Pathanamthitta": { lat: 10.977459, lng:  76.220611 },
   "Palakkad": { lat: 10.767220, lng: 76.659672 },
   "Coimbatore": { lat: 11.0168, lng: 76.9558 },
-  "Chennai": { lat: 13.0827, lng: 80.2707 },
+  "Chennai": { lat: 13.048633, lng: 80.208111 },
   "Tambaram": { lat: 12.9249, lng: 80.1000 },
   "Trichy": { lat: 10.7905, lng: 78.7047 },
   "Salem": { lat: 11.6643, lng: 78.1460 },
-  "Madurai": { lat: 9.9252, lng: 78.1198 },
+  "Madurai": { lat: 9.944061, lng: 78.141930 },
   "Erode": { lat: 11.3410, lng: 77.7172 },
   "Tirunelveli": { lat: 8.698488, lng: 77.727497 },
   "Bangalore": { lat: 12.9097, lng: 77.5730 },
@@ -65,41 +65,44 @@ const getDashboardData = async (req, res) => {
             const dataSheet = await googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: "Data!A:AD" });
             const userDataRows = dataSheet.data.values || [];
             
-            for (let i = userDataRows.length - 1; i >= 1; i--) {
-                const rowEmail = userDataRows[i][3] || "";
-                if (rowEmail.toLowerCase() === email.toLowerCase()) {
-                    userInfo = {
-                        name: userDataRows[i][1] || "Student",
-                        phone: userDataRows[i][2] || "N/A",
-                        email: userDataRows[i][3],
-                        rollNo: userDataRows[i][5] || "N/A",
-                        joiningDate: userDataRows[i][6] || "N/A",
-                        course: userDataRows[i][7] || "N/A",
-                        branch: userDataRows[i][8] || "Bangalore",
-                        photo: userDataRows[i][9] || "",
-                        homeTown: userDataRows[i][10] || "N/A",
-                        qualification: userDataRows[i][11] || "N/A",
-                        stream: userDataRows[i][12] || "N/A",
-                        fresherStatus: userDataRows[i][13] || "N/A",
-                        linkedin: userDataRows[i][14] || "N/A",
-                        instagram: userDataRows[i][15] || "N/A",
-                        placementReq: userDataRows[i][16] || "N/A",
-                        friend1Name: userDataRows[i][17] || "N/A",
-                        friend1Phone: userDataRows[i][18] || "N/A",
-                        friend2Name: userDataRows[i][19] || "N/A",
-                        friend2Phone: userDataRows[i][20] || "N/A",
-                        resume: userDataRows[i][21] || "N/A",
-                        parentName: userDataRows[i][22] || "N/A",
-                        parentContact: userDataRows[i][23] || "N/A",
-                        studyStatus: userDataRows[i][24] || "Currently Studying",
-                        completedDate: userDataRows[i][25] || "N/A",
-                        age: userDataRows[i][26] || "N/A",
-                        gender: userDataRows[i][27] || "N/A",
-                        certificate: userDataRows[i][28] || "N/A",
-                        vacancyOpen: userDataRows[i][29] || "No"
-                    };
-                    break;
-                }
+            for (let i = 1; i < nlData.length; i++) {
+                let status = (nlData[i][18] || "yes").toLowerCase(); // Index 18 = Column S (Status)
+                if (status.includes("no") || status.includes("closed") || status === "false") continue;
+                
+                // FIXED: Course is now Index 4 (Column E)
+                let rowCourse = (nlData[i][4] || "all").toLowerCase(); 
+                let isCourseMatch = false;
+
+                if (rowCourse.includes("all") || rowCourse === "") isCourseMatch = true;
+                else if (cleanStudentCourse && rowCourse.includes(cleanStudentCourse)) isCourseMatch = true;
+                else if (isStudentIT && rowCourse.includes("information technology")) isCourseMatch = true;
+                else if (cleanStudentCourse) isCourseMatch = cleanStudentCourse.split(" ").some(w => w.length > 3 && rowCourse.includes(w));
+
+                if (!isCourseMatch) continue;
+                
+                // FIXED: Company is Index 2 (Col C), Position is Index 5 (Col F)
+                let company = nlData[i][2] || "Placement Partner";
+                let position = nlData[i][5] || "Technical Role";
+                if (!company && !position) continue;
+
+                // FIXED: All indexes below now perfectly match the NewsLetter spreadsheet
+                vacancies.push({
+                    date: nlData[i][1] || "",                         // Col B
+                    company: company, 
+                    position: position, 
+                    state: nlData[i][6] || "OTHER STATES",            // Col G
+                    location: nlData[i][7] || "Multiple Locations",   // Col H
+                    modeOfWork: nlData[i][8] || "On-site",            // Col I
+                    openings: nlData[i][9] || "01-02",                // Col J
+                    qualification: nlData[i][10] || "Degree",         // Col K
+                    description: nlData[i][11] || "",                 // Col L
+                    experience: nlData[i][12] || "Fresher",           // Col M
+                    salary: nlData[i][13] || "Market Standard",       // Col N
+                    interviewDate: nlData[i][15] || "Will inform once scheduled", // Col P
+                    lastDate: nlData[i][16] || "Open",                // Col Q
+                    course: nlData[i][4] || "All",                    // Col E
+                    newsletterId: nlData[i][19] || nlData[i][20] || `JOB-${1000 + i}` 
+                });
             }
         } catch(e) {}
 
@@ -302,7 +305,8 @@ const applyForJob = async (req, res) => {
             for (let i = 1; i < nlData.length; i++) {
                 let currentId = nlData[i][19] || nlData[i][20] || `JOB-${1000 + i}`;
                 if (currentId.toString().trim() === jobId.toString().trim()) {
-                    position = nlData[i][4] || "N/A"; placementOfficer = nlData[i][17] || "TPO Auto-Assigned"; break;
+                    position = nlData[i][5] || "N/A"; // <-- CHANGED 4 to 5 (Column F)
+                    placementOfficer = nlData[i][17] || "TPO Auto-Assigned"; break;
                 }
             }
         } catch (e) { }
