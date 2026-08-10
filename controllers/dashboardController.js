@@ -4,7 +4,7 @@ const axios = require('axios');
 const BRANCH_LOCATIONS = {
   "Kochi": { lat: 9.9934, lng: 76.2904 }, 
   "Calicut": { lat: 11.2588, lng: 75.7804 },
-  "Trivandrum": { lat: 8.5241, lng: 76.9366 },
+  "Trivandrum": { lat: 8.488688, lng: 76.949653 },
   "Attingal": { lat: 8.6943, lng: 76.8184 },
   "Kollam": { lat: 8.8932, lng: 76.6141 },
   "Kannur": { lat: 11.8745, lng: 75.3704 },
@@ -480,30 +480,32 @@ const updatePassword = async (req, res) => {
 
 const submitIssue = async (req, res) => {
     try {
-        const { email, name, branch, course, issueDetails, location } = req.body;
+        // We now pull 'phone' from the frontend request
+        const { email, name, phone, branch, course, issueDetails, location } = req.body;
         
         const { googleSheets, auth } = await connectSheet();
         const spreadsheetId = process.env.SPREADSHEET_ID;
         const timestamp = new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" });
 
-        // PERFECTLY MAPPED TO NEW ISSUES TAB LAYOUT
+        // PERFECTLY MAPPED TO YOUR NEW 11-COLUMN ISSUES TAB
         const newTicket = [
             timestamp,                  // A: Timestamp
             name,                       // B: Name
-            req.body.rollNo || "N/A",   // C: Roll No (NEW COLUMN)
-            email,                      // D: Mail ID
-            branch || "Bangalore",      // E: Branch
-            course || "N/A",            // F: Course
-            location || "N/A",          // G: GPS Location
-            issueDetails,               // H: Issue Details
-            "Pending",                  // I: Status
-            ""                          // J: Remarks
+            phone || "N/A",             // C: Contact Number (NEW COLUMN)
+            req.body.rollNo || "N/A",   // D: Roll No 
+            email,                      // E: Mail ID
+            branch || "Bangalore",      // F: Branch
+            course || "N/A",            // G: Course
+            location || "N/A",          // H: GPS Location
+            issueDetails,               // I: Issue Details
+            "Pending",                  // J: Status
+            ""                          // K: Remarks
         ];
 
         await googleSheets.spreadsheets.values.append({
             auth, 
             spreadsheetId, 
-            range: "Issues!A:J", 
+            range: "Issues!A:K", // Expanded range to A:K
             valueInputOption: "USER_ENTERED",
             resource: { values: [newTicket] },
         });
