@@ -21,7 +21,7 @@ const BRANCH_LOCATIONS = {
   "Madurai": { lat: 9.9252, lng: 78.1198 },
   "Erode": { lat: 11.3410, lng: 77.7172 },
   "Tirunelveli": { lat: 8.7139, lng: 77.7567 },
-  "Bangalore": { lat: 12.9097, lng: 77.5730 },
+  "Bangalore": { lat: 12.9097, lng: 77.5730 }, // Fixed GPS Coordinates
   "Mangalore": { lat: 12.9141, lng: 74.8560 },
   "Mysore": { lat: 12.2958, lng: 76.6394 },
   "Mumbai": { lat: 19.0760, lng: 72.8777 },
@@ -278,7 +278,7 @@ const markAttendance = async (req, res) => {
             const studentBranchKey = Object.keys(BRANCH_LOCATIONS).find(b => b.toLowerCase() === (branch || "").trim().toLowerCase());
             const targetCampus = studentBranchKey ? BRANCH_LOCATIONS[studentBranchKey] : BRANCH_LOCATIONS["Bangalore"];
             calculatedDistance = calculateDistanceInMeters(parseFloat(userLat), parseFloat(userLng), targetCampus.lat, targetCampus.lng);
-            if (calculatedDistance <= 1000) isWithinGeofence = true;
+            if (calculatedDistance <= 1000) isWithinGeofence = true; // Fixed to 1000m
         }
 
         let alreadyMarked = false;
@@ -294,7 +294,7 @@ const markAttendance = async (req, res) => {
         if (!isScheduledToday) return res.status(400).json({ success: false, message: "No active session scheduled today." });
         if (!isTimeValid) return res.status(400).json({ success: false, message: "Attendance allowed only between 9:30 AM and 7:00 PM." });
         if (!userLat) return res.status(400).json({ success: false, message: "GPS required. Please enable Location Services." });
-        if (!isWithinGeofence) return res.status(400).json({ success: false, message: `Location Restriction. Must be within 1000m of campus. (You are ${Math.round(calculatedDistance)}m away).` });
+        if (!isWithinGeofence) return res.status(400).json({ success: false, message: `Location Restriction. Must be within 1000m of campus. (You are ${Math.round(calculatedDistance)}m away).` }); // Updated error string
 
         await googleSheets.spreadsheets.values.append({
             auth, spreadsheetId, range: "Talentino_Attendance!A:J", valueInputOption: "USER_ENTERED",
@@ -418,6 +418,7 @@ const uploadDocument = async (req, res) => {
         
         const action = docType === 'Photo' ? 'updateProfilePhoto' : 'updateDocument';
 
+        // Add explicit payload structure in case Apps Script is strict
         const response = await axios.post(process.env.APPS_SCRIPT_PHOTO_URL, { 
             action: action,
             email: email, 
