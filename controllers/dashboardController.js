@@ -21,7 +21,7 @@ const BRANCH_LOCATIONS = {
   "Madurai": { lat: 9.9252, lng: 78.1198 },
   "Erode": { lat: 11.3410, lng: 77.7172 },
   "Tirunelveli": { lat: 8.7139, lng: 77.7567 },
-  "Bangalore": { lat: 12.9097, lng: 77.5730 },
+  "Bangalore": { lat: 12.9096847, lng: 77.5732283 },
   "Mangalore": { lat: 12.9141, lng: 74.8560 },
   "Mysore": { lat: 12.2958, lng: 76.6394 },
   "Mumbai": { lat: 19.0760, lng: 72.8777 },
