@@ -12,7 +12,7 @@ const BRANCH_LOCATIONS = {
   "Perinthalmanna": { lat: 10.9760, lng: 76.2254 },
   "Kottayam": { lat: 9.5916, lng: 76.5222 },
   "Pathanamthitta": { lat: 9.2648, lng: 76.7870 },
-  "Palakkad": { lat: 10.4602, lng: 76.3934 },
+  "Palakkad": { lat: 10.767220, lng: 76.659672 },
   "Coimbatore": { lat: 11.0168, lng: 76.9558 },
   "Chennai": { lat: 13.0827, lng: 80.2707 },
   "Tambaram": { lat: 12.9249, lng: 80.1000 },
