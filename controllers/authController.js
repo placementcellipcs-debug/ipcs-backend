@@ -1,7 +1,6 @@
 const connectSheet = require('../config/db');
 const jwt = require('jsonwebtoken');
 
-// BULLETPROOF VALUE FETCH (Kept for registerUser)
 function getVal(row, headers, possibleNames, fallbackIndex = -1, defaultValue = "N/A") {
     if (headers && headers.length > 0) {
         for (let name of possibleNames) {
@@ -19,70 +18,58 @@ function getVal(row, headers, possibleNames, fallbackIndex = -1, defaultValue = 
 
 const loginUser = async (req, res) => {
     try {
-        // 1. Get user input
         const { email, password } = req.body;
         if (!email || !password) return res.status(400).json({ success: false, message: "Email and password are required." });
 
-        // 2. Connect to Google Sheets
         const { googleSheets, auth } = await connectSheet();
         const spreadsheetId = process.env.SPREADSHEET_ID;
 
-        // 3. Fetch all rows from the Data tab (Columns A through AD)
-        const getRows = await googleSheets.spreadsheets.values.get({ 
-            auth, 
-            spreadsheetId, 
-            range: 'Data!A:AD' 
-        });
-
+        const getRows = await googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: 'Data!A:AD' });
         const rows = getRows.data.values || [];
         let userObj = null;
 
-        // 4. Bottom-Up Search for Login using Static Indexing
         for (let i = rows.length - 1; i > 0; i--) {
             const row = rows[i];
             
-            // Check if Mail ID (Column D / Index 3) and Password (Column E / Index 4) match the input
+            // Check Mail ID (Col D/Idx 3) and Password (Col E/Idx 4)
             if (row[3] === email && row[4] === password) {
-                
-                // Map the profile data strictly to the column arrays
+                // PERFECTLY MAPPED TO NEW SCREENSHOTS
                 userObj = {
-                    name: row[1] || "Student",                 // Column B
-                    phone: row[2] || "N/A",                    // Column C
-                    email: row[3],                             // Column D
-                    rollNo: row[5] || "N/A",                   // Column F
-                    joiningDate: row[6] || "N/A",              // Column G
-                    course: row[7] || "N/A",                   // Column H
-                    branch: row[8] || "Bangalore",             // Column I
-                    photo: row[9] || "",                       // Column J
-                    homeTown: row[10] || "N/A",                // Column K
-                    qualification: row[11] || "N/A",           // Column L
-                    stream: row[12] || "N/A",                  // Column M
-                    fresherStatus: row[13] || "N/A",           // Column N
-                    linkedin: row[14] || "N/A",                // Column O
-                    instagram: row[15] || "N/A",               // Column P
-                    placementReq: row[16] || "N/A",            // Column Q
-                    friend1Name: row[17] || "N/A",             // Column R
-                    friend1Phone: row[18] || "N/A",            // Column S
-                    friend2Name: row[19] || "N/A",             // Column T
-                    friend2Phone: row[20] || "N/A",            // Column U
-                    resume: row[21] || "N/A",                  // Column V
-                    parentName: row[22] || "N/A",              // Column W
-                    parentContact: row[23] || "N/A",           // Column X
-                    studyStatus: row[24] || "Currently Studying", // Column Y
-                    completedDate: row[25] || "N/A",           // Column Z
-                    age: row[26] || "N/A",                     // Column AA
-                    gender: row[27] || "N/A",                  // Column AB
-                    certificate: row[28] || "N/A",             // Column AC
-                    vacancyOpen: row[29] || "No"               // Column AD
+                    name: row[1] || "Student",                 // B: 1
+                    phone: row[2] || "N/A",                    // C: 2
+                    email: row[3],                             // D: 3
+                    rollNo: row[5] || "N/A",                   // F: 5
+                    joiningDate: row[6] || "N/A",              // G: 6
+                    course: row[7] || "N/A",                   // H: 7
+                    branch: row[8] || "Bangalore",             // I: 8
+                    photo: row[9] || "",                       // J: 9 (PROFILE PHOTO)
+                    homeTown: row[10] || "N/A",                // K: 10
+                    qualification: row[11] || "N/A",           // L: 11
+                    stream: row[12] || "N/A",                  // M: 12
+                    fresherStatus: row[13] || "N/A",           // N: 13
+                    linkedin: row[14] || "N/A",                // O: 14
+                    instagram: row[15] || "N/A",               // P: 15
+                    placementReq: row[16] || "N/A",            // Q: 16
+                    friend1Name: row[17] || "N/A",             // R: 17
+                    friend1Phone: row[18] || "N/A",            // S: 18
+                    friend2Name: row[19] || "N/A",             // T: 19
+                    friend2Phone: row[20] || "N/A",            // U: 20
+                    resume: row[21] || "N/A",                  // V: 21
+                    parentName: row[22] || "N/A",              // W: 22
+                    parentContact: row[23] || "N/A",           // X: 23
+                    studyStatus: row[24] || "Currently Studying", // Y: 24
+                    completedDate: row[25] || "N/A",           // Z: 25
+                    age: row[26] || "N/A",                     // AA: 26
+                    gender: row[27] || "N/A",                  // AB: 27
+                    certificate: row[28] || "N/A",             // AC: 28
+                    vacancyOpen: row[29] || "No"               // AD: 29
                 };
-                break; // Stop searching once the newest valid entry is found
+                break; 
             }
         }
 
-        // 5. If no match is found, reject the login
         if (!userObj) return res.status(404).json({ success: false, message: "Account not found or incorrect password." });
 
-        // 6. Generate secure session token
         const token = jwt.sign(
             { email: userObj.email, rollNo: userObj.rollNo, branch: userObj.branch }, 
             process.env.JWT_SECRET || 'super_secret_key_for_ipcs_portal_2026', 
@@ -138,37 +125,38 @@ const registerUser = async (req, res) => {
              } catch(e) { console.log("Photo upload failed:", e.message || e); }
         }
 
+        // PERFECTLY MAPPED TO NEW SCREENSHOTS
         const newRow = [
-            new Date().toLocaleString('en-GB'),
-            String(formData.name || "N/A"),
-            String(formData.phone || "N/A"),
-            String(formData.email || "").trim(),
-            String(formData.password || ""),
-            String(formData.rollNo || "N/A"),
-            String(formData.joiningDate || "N/A"),
-            String(formData.course || "N/A"),
-            String(formData.branch || "N/A"),
-            String(photoUrl || ""),
-            String(formData.homeTown || "N/A"),
-            String(formData.qualification || "N/A"),
-            String(formData.stream || "N/A"),
-            String(formData.fresherStatus || "N/A"),
-            String(formData.linkedin || "N/A"),
-            String(formData.instagram || "N/A"),
-            String(formData.placementReq || "N/A"),
-            String(formData.friend1Name || "N/A"),
-            String(formData.friend1Phone || "N/A"),
-            String(formData.friend2Name || "N/A"),
-            String(formData.friend2Phone || "N/A"),
-            "N/A",
-            String(formData.parentName || "N/A"),
-            String(formData.parentContact || "N/A"),
-            "Currently Studying",
-            "N/A",
-            String(formData.age || "N/A"),
-            String(formData.gender || "N/A"),
-            "N/A",
-            "Yes"
+            new Date().toLocaleString('en-GB'),            // A (0): Timestamp
+            String(formData.name || "N/A"),                // B (1): Name
+            String(formData.phone || "N/A"),               // C (2): Phone No.
+            String(formData.email || "").trim(),           // D (3): Mail ID
+            String(formData.password || ""),               // E (4): Password
+            String(formData.rollNo || "N/A"),              // F (5): Roll Number
+            String(formData.joiningDate || "N/A"),         // G (6): Joining Date
+            String(formData.course || "N/A"),              // H (7): Course
+            String(formData.branch || "Bangalore"),        // I (8): Branch
+            String(photoUrl || ""),                        // J (9): Profile Photo
+            String(formData.homeTown || "N/A"),            // K (10): Home Town
+            String(formData.qualification || "N/A"),       // L (11): Qualification
+            String(formData.stream || "N/A"),              // M (12): Stream
+            String(formData.fresherStatus || "N/A"),       // N (13): Fresher Status
+            String(formData.linkedin || "N/A"),            // O (14): LinkedIn
+            String(formData.instagram || "N/A"),           // P (15): Instagram
+            String(formData.placementReq || "N/A"),        // Q (16): Placement Req
+            String(formData.friend1Name || "N/A"),         // R (17): Friend 1 Name
+            String(formData.friend1Phone || "N/A"),        // S (18): Friend 1 Contact
+            String(formData.friend2Name || "N/A"),         // T (19): Friend 2 Name
+            String(formData.friend2Phone || "N/A"),        // U (20): Friend 2 Contact
+            "N/A",                                         // V (21): Resume
+            String(formData.parentName || "N/A"),          // W (22): Parent Name
+            String(formData.parentContact || "N/A"),       // X (23): Parent Contact
+            "Currently Studying",                          // Y (24): Study Status
+            "N/A",                                         // Z (25): Completed Date
+            String(formData.age || "N/A"),                 // AA (26): Age
+            String(formData.gender || "N/A"),              // AB (27): Gender
+            "N/A",                                         // AC (28): Certificate
+            "Yes"                                          // AD (29): Vacancy Open
         ];
 
         await googleSheets.spreadsheets.values.append({
@@ -180,7 +168,7 @@ const registerUser = async (req, res) => {
         });
 
         const token = jwt.sign(
-            { email: formData.email, rollNo: formData.rollNo || "N/A", branch: formData.branch || "N/A" },
+            { email: formData.email, rollNo: formData.rollNo || "N/A", branch: formData.branch || "Bangalore" },
             process.env.JWT_SECRET || 'super_secret_key_for_ipcs_portal_2026',
             { expiresIn: '7d' }
         );
@@ -195,7 +183,7 @@ const registerUser = async (req, res) => {
             vacancyOpen: "Yes"
         };
 
-        return res.status(200).json({ success: true, message: "Account created!", token, user: userObj });
+        return res.status(200).json({ success: true, message: "Account created!", token, userObj });
     } catch (error) { 
         console.error("Registration Error details:", error);
         return res.status(500).json({ success: false, message: error.message || "Server error during registration." }); 

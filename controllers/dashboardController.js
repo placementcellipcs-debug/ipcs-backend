@@ -76,25 +76,25 @@ const getDashboardData = async (req, res) => {
                         joiningDate: userDataRows[i][6] || "N/A",
                         course: userDataRows[i][7] || "N/A",
                         branch: userDataRows[i][8] || "Bangalore",
-                        homeTown: userDataRows[i][9] || "N/A",
-                        qualification: userDataRows[i][10] || "N/A",
-                        stream: userDataRows[i][11] || "N/A",
-                        age: userDataRows[i][12] || "N/A",
-                        gender: userDataRows[i][13] || "N/A",
-                        fresherStatus: userDataRows[i][14] || "N/A",
-                        linkedin: userDataRows[i][15] || "N/A",
-                        instagram: userDataRows[i][16] || "N/A",
-                        placementReq: userDataRows[i][17] || "N/A",
-                        friend1Name: userDataRows[i][18] || "N/A",
-                        friend1Phone: userDataRows[i][19] || "N/A",
-                        friend2Name: userDataRows[i][20] || "N/A",
-                        friend2Phone: userDataRows[i][21] || "N/A",
-                        resume: userDataRows[i][22] || "N/A",
-                        parentName: userDataRows[i][23] || "N/A",
-                        parentContact: userDataRows[i][24] || "N/A",
-                        studyStatus: userDataRows[i][25] || "Currently Studying",
-                        completedDate: userDataRows[i][26] || "N/A",
-                        photo: userDataRows[i][27] || "",
+                        photo: userDataRows[i][9] || "",
+                        homeTown: userDataRows[i][10] || "N/A",
+                        qualification: userDataRows[i][11] || "N/A",
+                        stream: userDataRows[i][12] || "N/A",
+                        fresherStatus: userDataRows[i][13] || "N/A",
+                        linkedin: userDataRows[i][14] || "N/A",
+                        instagram: userDataRows[i][15] || "N/A",
+                        placementReq: userDataRows[i][16] || "N/A",
+                        friend1Name: userDataRows[i][17] || "N/A",
+                        friend1Phone: userDataRows[i][18] || "N/A",
+                        friend2Name: userDataRows[i][19] || "N/A",
+                        friend2Phone: userDataRows[i][20] || "N/A",
+                        resume: userDataRows[i][21] || "N/A",
+                        parentName: userDataRows[i][22] || "N/A",
+                        parentContact: userDataRows[i][23] || "N/A",
+                        studyStatus: userDataRows[i][24] || "Currently Studying",
+                        completedDate: userDataRows[i][25] || "N/A",
+                        age: userDataRows[i][26] || "N/A",
+                        gender: userDataRows[i][27] || "N/A",
                         certificate: userDataRows[i][28] || "N/A",
                         vacancyOpen: userDataRows[i][29] || "No"
                     };
@@ -336,13 +336,16 @@ const updateProfile = async (req, res) => {
         
         if (targetRowIndex === -1) return res.status(404).json({ success: false, message: "User not found." });
 
+        // PERFECTLY MAPPED BATCH UPDATE RANGES
         await googleSheets.spreadsheets.values.batchUpdate({
             auth, spreadsheetId,
             resource: {
                 valueInputOption: "USER_ENTERED",
                 data: [
-                    { range: `Data!J${targetRowIndex}:R${targetRowIndex}`, values: [[homeTown || "N/A", qualification || "N/A", stream || "N/A", age || "N/A", gender || "N/A", fresherStatus || "N/A", linkedin || "N/A", instagram || "N/A", placementReq || "N/A"]] },
-                    { range: `Data!X${targetRowIndex}:AA${targetRowIndex}`, values: [[parentName || "N/A", parentContact || "N/A", studyStatus || "Currently Studying", completedDate || "N/A"]] }
+                    { range: `Data!K${targetRowIndex}:Q${targetRowIndex}`, values: [[homeTown || "N/A", qualification || "N/A", stream || "N/A", fresherStatus || "N/A", linkedin || "N/A", instagram || "N/A", placementReq || "N/A"]] },
+                    { range: `Data!W${targetRowIndex}:X${targetRowIndex}`, values: [[parentName || "N/A", parentContact || "N/A"]] },
+                    { range: `Data!Y${targetRowIndex}:Z${targetRowIndex}`, values: [[studyStatus || "Currently Studying", completedDate || "N/A"]] },
+                    { range: `Data!AA${targetRowIndex}:AB${targetRowIndex}`, values: [[age || "N/A", gender || "N/A"]] }
                 ]
             }
         });
@@ -359,25 +362,25 @@ const updateProfile = async (req, res) => {
             joiningDate: updatedRow[6] || "N/A",
             course: updatedRow[7] || "N/A",
             branch: updatedRow[8] || "Bangalore",
-            homeTown: updatedRow[9] || "N/A",
-            qualification: updatedRow[10] || "N/A",
-            stream: updatedRow[11] || "N/A",
-            age: updatedRow[12] || "N/A",
-            gender: updatedRow[13] || "N/A",
-            fresherStatus: updatedRow[14] || "N/A",
-            linkedin: updatedRow[15] || "N/A",
-            instagram: updatedRow[16] || "N/A",
-            placementReq: updatedRow[17] || "N/A",
-            friend1Name: updatedRow[18] || "N/A",
-            friend1Phone: updatedRow[19] || "N/A",
-            friend2Name: updatedRow[20] || "N/A",
-            friend2Phone: updatedRow[21] || "N/A",
-            resume: updatedRow[22] || "N/A",
-            parentName: updatedRow[23] || "N/A",
-            parentContact: updatedRow[24] || "N/A",
-            studyStatus: updatedRow[25] || "Currently Studying",
-            completedDate: updatedRow[26] || "N/A",
-            photo: updatedRow[27] || "",
+            photo: updatedRow[9] || "",
+            homeTown: updatedRow[10] || "N/A",
+            qualification: updatedRow[11] || "N/A",
+            stream: updatedRow[12] || "N/A",
+            fresherStatus: updatedRow[13] || "N/A",
+            linkedin: updatedRow[14] || "N/A",
+            instagram: updatedRow[15] || "N/A",
+            placementReq: updatedRow[16] || "N/A",
+            friend1Name: updatedRow[17] || "N/A",
+            friend1Phone: updatedRow[18] || "N/A",
+            friend2Name: updatedRow[19] || "N/A",
+            friend2Phone: updatedRow[20] || "N/A",
+            resume: updatedRow[21] || "N/A",
+            parentName: updatedRow[22] || "N/A",
+            parentContact: updatedRow[23] || "N/A",
+            studyStatus: updatedRow[24] || "Currently Studying",
+            completedDate: updatedRow[25] || "N/A",
+            age: updatedRow[26] || "N/A",
+            gender: updatedRow[27] || "N/A",
             certificate: updatedRow[28] || "N/A",
             vacancyOpen: updatedRow[29] || "No"
         };
@@ -413,7 +416,6 @@ const uploadDocument = async (req, res) => {
             return res.status(500).json({ success: false, message: result?.message || "Drive upload failed in Apps Script" });
         }
 
-        // NEW LOGIC: Instantly save the uploaded URL to the Google Sheet so it never gets lost
         try {
             const { googleSheets, auth } = await connectSheet();
             const spreadsheetId = process.env.SPREADSHEET_ID;
@@ -429,8 +431,8 @@ const uploadDocument = async (req, res) => {
             }
             
             if (targetRowIndex !== -1) {
-                // Map to exact columns: AB for Photo, W for Resume, AC for Certificate
-                let columnLetter = docType === 'Photo' ? 'AB' : (docType === 'Resume' ? 'W' : 'AC');
+                // MAPPED TO NEW SCREENSHOTS: J for Photo, V for Resume, AC for Certificate
+                let columnLetter = docType === 'Photo' ? 'J' : (docType === 'Resume' ? 'V' : 'AC');
                 await googleSheets.spreadsheets.values.update({
                     auth, 
                     spreadsheetId, 
@@ -478,23 +480,24 @@ const updatePassword = async (req, res) => {
 
 const submitIssue = async (req, res) => {
     try {
-        const { email, name, branch, course, issueDetails, location, rating, checkInDate } = req.body;
+        const { email, name, branch, course, issueDetails, location } = req.body;
         
         const { googleSheets, auth } = await connectSheet();
         const spreadsheetId = process.env.SPREADSHEET_ID;
         const timestamp = new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" });
 
+        // PERFECTLY MAPPED TO NEW ISSUES TAB LAYOUT
         const newTicket = [
-            timestamp,                  // Column A: Timestamp
-            email,                      // Column B: Email
-            name,                       // Column C: Name
-            branch || "Bangalore",      // Column D: Branch
-            course || "N/A",            // Column E: Course
-            location || "N/A",          // Column F: Location
-            rating || "N/A",            // Column G: Rating
-            issueDetails,               // Column H: Notes
-            checkInDate || "N/A",       // Column I: Present Check-ins Date
-            "Pending"                   // Column J: Issue Reported (Status)
+            timestamp,                  // A: Timestamp
+            name,                       // B: Name
+            req.body.rollNo || "N/A",   // C: Roll No (NEW COLUMN)
+            email,                      // D: Mail ID
+            branch || "Bangalore",      // E: Branch
+            course || "N/A",            // F: Course
+            location || "N/A",          // G: GPS Location
+            issueDetails,               // H: Issue Details
+            "Pending",                  // I: Status
+            ""                          // J: Remarks
         ];
 
         await googleSheets.spreadsheets.values.append({
