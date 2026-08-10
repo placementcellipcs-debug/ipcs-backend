@@ -21,7 +21,7 @@ const BRANCH_LOCATIONS = {
   "Madurai": { lat: 9.9252, lng: 78.1198 },
   "Erode": { lat: 11.3410, lng: 77.7172 },
   "Tirunelveli": { lat: 8.7139, lng: 77.7567 },
-  "Bangalore": { lat: 12.9097, lng: 77.5730 }, // UPDATED ACTUAL IPCS BANGALORE LOCATION
+  "Bangalore": { lat: 12.9097, lng: 77.5730 },
   "Mangalore": { lat: 12.9141, lng: 74.8560 },
   "Mysore": { lat: 12.2958, lng: 76.6394 },
   "Mumbai": { lat: 19.0760, lng: 72.8777 },
@@ -336,7 +336,6 @@ const updateProfile = async (req, res) => {
         
         if (targetRowIndex === -1) return res.status(404).json({ success: false, message: "User not found." });
 
-        // PERFECTLY ALIGNED BATCH RANGES based on new sheet columns A-AD
         await googleSheets.spreadsheets.values.batchUpdate({
             auth, spreadsheetId,
             resource: {
@@ -412,6 +411,36 @@ const uploadDocument = async (req, res) => {
         
         if (!result || !result.success) {
             return res.status(500).json({ success: false, message: result?.message || "Drive upload failed in Apps Script" });
+        }
+
+        // NEW LOGIC: Instantly save the uploaded URL to the Google Sheet so it never gets lost
+        try {
+            const { googleSheets, auth } = await connectSheet();
+            const spreadsheetId = process.env.SPREADSHEET_ID;
+            const getRows = await googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: "Data!A:D" });
+            const rows = getRows.data.values || [];
+            let targetRowIndex = -1;
+            
+            for (let i = rows.length - 1; i >= 1; i--) {
+                if (rows[i][3] && rows[i][3].toLowerCase() === email.toLowerCase()) {
+                    targetRowIndex = i + 1; 
+                    break;
+                }
+            }
+            
+            if (targetRowIndex !== -1) {
+                // Map to exact columns: AB for Photo, W for Resume, AC for Certificate
+                let columnLetter = docType === 'Photo' ? 'AB' : (docType === 'Resume' ? 'W' : 'AC');
+                await googleSheets.spreadsheets.values.update({
+                    auth, 
+                    spreadsheetId, 
+                    range: `Data!${columnLetter}${targetRowIndex}`,
+                    valueInputOption: "USER_ENTERED", 
+                    resource: { values: [[result.url]] }
+                });
+            }
+        } catch (sheetUpdateErr) {
+            console.log("Failed to write document URL to sheet, but upload succeeded.", sheetUpdateErr);
         }
 
         res.status(200).json({ success: true, message: `${docType} uploaded successfully!`, url: result.url });
