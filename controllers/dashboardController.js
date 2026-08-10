@@ -21,7 +21,7 @@ const BRANCH_LOCATIONS = {
   "Madurai": { lat: 9.9252, lng: 78.1198 },
   "Erode": { lat: 11.3410, lng: 77.7172 },
   "Tirunelveli": { lat: 8.7139, lng: 77.7567 },
-  "Bangalore": { lat: 12.9097, lng: 77.5730 }, // Fixed GPS Coordinates
+  "Bangalore": { lat: 12.9097, lng: 77.5730 }, // <-- UPDATED ACTUAL IPCS BANGALORE LOCATION
   "Mangalore": { lat: 12.9141, lng: 74.8560 },
   "Mysore": { lat: 12.2958, lng: 76.6394 },
   "Mumbai": { lat: 19.0760, lng: 72.8777 },
@@ -278,7 +278,7 @@ const markAttendance = async (req, res) => {
             const studentBranchKey = Object.keys(BRANCH_LOCATIONS).find(b => b.toLowerCase() === (branch || "").trim().toLowerCase());
             const targetCampus = studentBranchKey ? BRANCH_LOCATIONS[studentBranchKey] : BRANCH_LOCATIONS["Bangalore"];
             calculatedDistance = calculateDistanceInMeters(parseFloat(userLat), parseFloat(userLng), targetCampus.lat, targetCampus.lng);
-            if (calculatedDistance <= 1000) isWithinGeofence = true; // Fixed to 1000m
+            if (calculatedDistance <= 1000) isWithinGeofence = true; // <-- 1000m FIX
         }
 
         let alreadyMarked = false;
@@ -294,7 +294,7 @@ const markAttendance = async (req, res) => {
         if (!isScheduledToday) return res.status(400).json({ success: false, message: "No active session scheduled today." });
         if (!isTimeValid) return res.status(400).json({ success: false, message: "Attendance allowed only between 9:30 AM and 7:00 PM." });
         if (!userLat) return res.status(400).json({ success: false, message: "GPS required. Please enable Location Services." });
-        if (!isWithinGeofence) return res.status(400).json({ success: false, message: `Location Restriction. Must be within 1000m of campus. (You are ${Math.round(calculatedDistance)}m away).` }); // Updated error string
+        if (!isWithinGeofence) return res.status(400).json({ success: false, message: `Location Restriction. Must be within 1000m of campus. (You are ${Math.round(calculatedDistance)}m away).` }); // <-- 1000m FIX
 
         await googleSheets.spreadsheets.values.append({
             auth, spreadsheetId, range: "Talentino_Attendance!A:J", valueInputOption: "USER_ENTERED",
@@ -344,7 +344,6 @@ const updateProfile = async (req, res) => {
         const headers = rows[0] || [];
         let targetRowIndex = -1;
         
-        // SEARCH BOTTOM UP TO ENSURE WE UPDATE THE CORRECT ROW
         for (let i = rows.length - 1; i >= 1; i--) {
             const rowEmail = getVal(rows[i], headers, ["email", "mail"], 3, "");
             if (rowEmail && rowEmail.toLowerCase() === email.toLowerCase()) { 
@@ -368,7 +367,6 @@ const updateProfile = async (req, res) => {
             }
         });
 
-        // RE-FETCH THE UPDATED ROW AND SEND A PERFECT, COMPLETE USER OBJECT BACK TO THE FRONTEND
         const updatedSheet = await googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: `Data!A:AD` });
         const allRows = updatedSheet.data.values || [];
         const updatedRow = allRows[targetRowIndex - 1];
@@ -418,7 +416,6 @@ const uploadDocument = async (req, res) => {
         
         const action = docType === 'Photo' ? 'updateProfilePhoto' : 'updateDocument';
 
-        // Add explicit payload structure in case Apps Script is strict
         const response = await axios.post(process.env.APPS_SCRIPT_PHOTO_URL, { 
             action: action,
             email: email, 
@@ -454,7 +451,6 @@ const updatePassword = async (req, res) => {
         const headers = rows[0] || [];
         let targetRowIndex = -1;
         
-        // SEARCH BOTTOM UP
         for (let i = rows.length - 1; i >= 1; i--) {
             const rowEmail = getVal(rows[i], headers, ["email", "mail"], 3, "");
             if (rowEmail && rowEmail.toLowerCase() === email.toLowerCase()) {
