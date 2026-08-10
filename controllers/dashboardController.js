@@ -37,6 +37,21 @@ const BRANCH_LOCATIONS = {
   "Riyadh (Saudi Arabia)": { lat: 24.7136, lng: 46.6753 }
 };
 
+function getVal(row, headers, possibleNames, fallbackIndex = -1, defaultValue = "N/A") {
+    if (headers && headers.length > 0) {
+        for (let name of possibleNames) {
+            const idx = headers.findIndex(h => h && h.toString().trim().toLowerCase().includes(name.toLowerCase()));
+            if (idx !== -1 && row[idx] !== undefined && row[idx] !== "") {
+                return row[idx].toString().trim();
+            }
+        }
+    }
+    if (fallbackIndex !== -1 && row[fallbackIndex] !== undefined && row[fallbackIndex] !== "") {
+        return row[fallbackIndex].toString().trim();
+    }
+    return defaultValue;
+}
+
 function isSameDay(dateStr, now) {
     if (!dateStr) return false;
     const parsedDate = new Date(dateStr.toString().replace(/,/g, '').replace(/\s+/g, ' ').trim());
@@ -64,37 +79,40 @@ const getDashboardData = async (req, res) => {
         try {
             const dataSheet = await googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: "Data!A:AD" });
             const userDataRows = dataSheet.data.values || [];
-            for (let i = 1; i < userDataRows.length; i++) {
-                if (userDataRows[i][3] && userDataRows[i][3].toString().trim().toLowerCase() === email.toString().trim().toLowerCase()) {
+            const headers = userDataRows[0] || [];
+            
+            for (let i = userDataRows.length - 1; i >= 1; i--) {
+                const rowEmail = getVal(userDataRows[i], headers, ["email", "mail"], 3, "");
+                if (rowEmail && rowEmail.toLowerCase() === email.toLowerCase()) {
                     userInfo = {
-                        name: userDataRows[i][1] || "Student",
-                        phone: userDataRows[i][2] || "N/A",
-                        email: userDataRows[i][3] || email,
-                        rollNo: userDataRows[i][5] || "N/A",
-                        joiningDate: userDataRows[i][6] || "N/A",
-                        course: userDataRows[i][7] || "N/A",
-                        branch: userDataRows[i][8] || "Bangalore",
-                        photo: userDataRows[i][9] || "",
-                        homeTown: userDataRows[i][10] || "N/A",
-                        qualification: userDataRows[i][11] || "N/A",
-                        stream: userDataRows[i][12] || "N/A",
-                        fresherStatus: userDataRows[i][13] || "N/A",
-                        linkedin: userDataRows[i][14] || "N/A",
-                        instagram: userDataRows[i][15] || "N/A",
-                        placementReq: userDataRows[i][16] || "N/A",
-                        friend1Name: userDataRows[i][17] || "N/A",
-                        friend1Phone: userDataRows[i][18] || "N/A",
-                        friend2Name: userDataRows[i][19] || "N/A",
-                        friend2Phone: userDataRows[i][20] || "N/A",
-                        resume: userDataRows[i][21] || "N/A",
-                        parentName: userDataRows[i][22] || "N/A",
-                        parentContact: userDataRows[i][23] || "N/A",
-                        studyStatus: userDataRows[i][24] || "Currently Studying",
-                        completedDate: userDataRows[i][25] || "N/A",
-                        age: userDataRows[i][26] || "N/A",
-                        gender: userDataRows[i][27] || "N/A",
-                        certificate: userDataRows[i][28] || "N/A",
-                        vacancyOpen: userDataRows[i][29] || "Yes"
+                        name: getVal(userDataRows[i], headers, ["full name", "name"], 1, "Student"),
+                        phone: getVal(userDataRows[i], headers, ["phone number", "phone", "contact"], 2, "N/A"),
+                        email: getVal(userDataRows[i], headers, ["email", "mail"], 3, email),
+                        rollNo: getVal(userDataRows[i], headers, ["roll", "id"], 5, "N/A"),
+                        joiningDate: getVal(userDataRows[i], headers, ["joining date", "joining"], 6, "N/A"),
+                        course: getVal(userDataRows[i], headers, ["course"], 7, "N/A"),
+                        branch: getVal(userDataRows[i], headers, ["branch"], 8, "Bangalore"),
+                        photo: getVal(userDataRows[i], headers, ["profile photo", "photo"], 9, ""),
+                        homeTown: getVal(userDataRows[i], headers, ["home town", "town"], 10, "N/A"),
+                        qualification: getVal(userDataRows[i], headers, ["qualification"], 11, "N/A"),
+                        stream: getVal(userDataRows[i], headers, ["stream"], 12, "N/A"),
+                        fresherStatus: getVal(userDataRows[i], headers, ["fresher", "experience"], 13, "N/A"),
+                        linkedin: getVal(userDataRows[i], headers, ["linkedin"], 14, "N/A"),
+                        instagram: getVal(userDataRows[i], headers, ["instagram"], 15, "N/A"),
+                        placementReq: getVal(userDataRows[i], headers, ["placement req", "requirement"], 16, "N/A"),
+                        friend1Name: getVal(userDataRows[i], headers, ["friend 1 name", "friend1"], 17, "N/A"),
+                        friend1Phone: getVal(userDataRows[i], headers, ["friend 1 contact", "friend 1 phone"], 18, "N/A"),
+                        friend2Name: getVal(userDataRows[i], headers, ["friend 2 name", "friend2"], 19, "N/A"),
+                        friend2Phone: getVal(userDataRows[i], headers, ["friend 2 contact", "friend 2 phone"], 20, "N/A"),
+                        resume: getVal(userDataRows[i], headers, ["resume"], 21, "N/A"),
+                        parentName: getVal(userDataRows[i], headers, ["parent name", "parent"], 22, "N/A"),
+                        parentContact: getVal(userDataRows[i], headers, ["parent contact"], 23, "N/A"),
+                        studyStatus: getVal(userDataRows[i], headers, ["study status"], 24, "Currently Studying"),
+                        completedDate: getVal(userDataRows[i], headers, ["completed date"], 25, "N/A"),
+                        age: getVal(userDataRows[i], headers, ["age"], 26, "N/A"),
+                        gender: getVal(userDataRows[i], headers, ["gender"], 27, "N/A"),
+                        certificate: getVal(userDataRows[i], headers, ["certificate"], 28, "N/A"),
+                        vacancyOpen: getVal(userDataRows[i], headers, ["vaccancy", "vacancy", "open"], 29, "No")
                     };
                     break;
                 }
@@ -211,19 +229,18 @@ const getDashboardData = async (req, res) => {
         try {
             const contactSheet = await googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: "Contact!A:H" });
             const contactData = contactSheet.data.values || [];
+            const contactHeaders = contactData[0] || [];
+            
             for (let k = 1; k < contactData.length; k++) {
-                const assigned = (contactData[k][4] || "").toLowerCase();
-                const sitting = (contactData[k][3] || "").toLowerCase();
-                const studentBranch = (branch || userInfo.branch || "Bangalore").toLowerCase();
-
-                if (assigned.includes(studentBranch) || sitting.includes(studentBranch)) {
+                const assignedRegion = getVal(contactData[k], contactHeaders, ["assigned", "region", "branch"], 4, "");
+                if (assignedRegion.toLowerCase().includes((branch || "Bangalore").toLowerCase()) || assignedRegion.toLowerCase().includes("all")) {
                     tpoInfo = { 
-                        name: contactData[k][0] || "Placement Officer", 
-                        phone: contactData[k][1] || "N/A", 
-                        email: contactData[k][2] || "placement@ipcsglobal.com", 
-                        sittingBranch: contactData[k][3] || "N/A",
-                        assignedBranches: contactData[k][4] || "N/A", 
-                        profilePhoto: contactData[k][6] || ""         
+                        name: getVal(contactData[k], contactHeaders, ["name", "tpo name"], 0, "Placement Officer"), 
+                        phone: getVal(contactData[k], contactHeaders, ["contact", "phone"], 1, "N/A"), 
+                        email: getVal(contactData[k], contactHeaders, ["email", "mail"], 2, "placement@ipcsglobal.com"), 
+                        sittingBranch: getVal(contactData[k], contactHeaders, ["sitting branch", "sitting"], 3, "N/A"),
+                        assignedBranches: assignedRegion, 
+                        profilePhoto: getVal(contactData[k], contactHeaders, ["profile photo", "photo"], 6, "")         
                     };
                     break;
                 }
@@ -322,12 +339,20 @@ const updateProfile = async (req, res) => {
         const { googleSheets, auth } = await connectSheet();
         const spreadsheetId = process.env.SPREADSHEET_ID;
 
-        const getRows = await googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: "Data!A:E" });
+        const getRows = await googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: "Data!A:AD" });
         const rows = getRows.data.values || [];
+        const headers = rows[0] || [];
         let targetRowIndex = -1;
-        for (let i = 0; i < rows.length; i++) {
-            if (rows[i][3] && rows[i][3].toString().trim().toLowerCase() === email.toString().trim().toLowerCase()) { targetRowIndex = i + 1; break; }
+        
+        // SEARCH BOTTOM UP TO ENSURE WE UPDATE THE CORRECT ROW
+        for (let i = rows.length - 1; i >= 1; i--) {
+            const rowEmail = getVal(rows[i], headers, ["email", "mail"], 3, "");
+            if (rowEmail && rowEmail.toLowerCase() === email.toLowerCase()) { 
+                targetRowIndex = i + 1; 
+                break; 
+            }
         }
+        
         if (targetRowIndex === -1) return res.status(404).json({ success: false, message: "User not found." });
 
         await googleSheets.spreadsheets.values.batchUpdate({
@@ -343,15 +368,43 @@ const updateProfile = async (req, res) => {
             }
         });
 
-        const updatedRow = await googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: `Data!A${targetRowIndex}:AD${targetRowIndex}` });
-        const user = updatedRow.data.values[0];
+        // RE-FETCH THE UPDATED ROW AND SEND A PERFECT, COMPLETE USER OBJECT BACK TO THE FRONTEND
+        const updatedSheet = await googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: `Data!A:AD` });
+        const allRows = updatedSheet.data.values || [];
+        const updatedRow = allRows[targetRowIndex - 1];
 
-        res.status(200).json({ success: true, message: "Profile updated successfully!", user: {
-            homeTown: user[10] || "N/A", qualification: user[11] || "N/A", stream: user[12] || "N/A",
-            fresherStatus: user[13] || "N/A", linkedin: user[14] || "N/A", instagram: user[15] || "N/A",
-            placementReq: user[16] || "N/A", parentName: user[22] || "N/A", parentContact: user[23] || "N/A",
-            studyStatus: user[24] || "Currently Studying", completedDate: user[25] || "N/A", age: user[26] || "N/A", gender: user[27] || "N/A"
-        } });
+        const completeUserObj = {
+            name: getVal(updatedRow, headers, ["full name", "name"], 1, "Student"),
+            phone: getVal(updatedRow, headers, ["phone number", "phone", "contact"], 2, "N/A"),
+            email: getVal(updatedRow, headers, ["email", "mail"], 3, email),
+            rollNo: getVal(updatedRow, headers, ["roll", "id"], 5, "N/A"),
+            joiningDate: getVal(updatedRow, headers, ["joining date", "joining"], 6, "N/A"),
+            course: getVal(updatedRow, headers, ["course"], 7, "N/A"),
+            branch: getVal(updatedRow, headers, ["branch"], 8, "Bangalore"),
+            photo: getVal(updatedRow, headers, ["profile photo", "photo"], 9, ""),
+            homeTown: getVal(updatedRow, headers, ["home town", "town"], 10, "N/A"),
+            qualification: getVal(updatedRow, headers, ["qualification"], 11, "N/A"),
+            stream: getVal(updatedRow, headers, ["stream"], 12, "N/A"),
+            fresherStatus: getVal(updatedRow, headers, ["fresher", "experience"], 13, "N/A"),
+            linkedin: getVal(updatedRow, headers, ["linkedin"], 14, "N/A"),
+            instagram: getVal(updatedRow, headers, ["instagram"], 15, "N/A"),
+            placementReq: getVal(updatedRow, headers, ["placement req", "requirement"], 16, "N/A"),
+            friend1Name: getVal(updatedRow, headers, ["friend 1 name", "friend1"], 17, "N/A"),
+            friend1Phone: getVal(updatedRow, headers, ["friend 1 contact", "friend 1 phone"], 18, "N/A"),
+            friend2Name: getVal(updatedRow, headers, ["friend 2 name", "friend2"], 19, "N/A"),
+            friend2Phone: getVal(updatedRow, headers, ["friend 2 contact", "friend 2 phone"], 20, "N/A"),
+            resume: getVal(updatedRow, headers, ["resume"], 21, "N/A"),
+            parentName: getVal(updatedRow, headers, ["parent name", "parent"], 22, "N/A"),
+            parentContact: getVal(updatedRow, headers, ["parent contact"], 23, "N/A"),
+            studyStatus: getVal(updatedRow, headers, ["study status"], 24, "Currently Studying"),
+            completedDate: getVal(updatedRow, headers, ["completed date"], 25, "N/A"),
+            age: getVal(updatedRow, headers, ["age"], 26, "N/A"),
+            gender: getVal(updatedRow, headers, ["gender"], 27, "N/A"),
+            certificate: getVal(updatedRow, headers, ["certificate"], 28, "N/A"),
+            vacancyOpen: getVal(updatedRow, headers, ["vaccancy", "vacancy", "open"], 29, "No")
+        };
+
+        res.status(200).json({ success: true, message: "Profile updated successfully!", user: completeUserObj });
     } catch (error) { res.status(500).json({ success: false, message: "Failed to update profile." }); }
 };
 
@@ -370,7 +423,10 @@ const uploadDocument = async (req, res) => {
             email: email, 
             rollNo: rollNo,
             base64: base64Clean, 
-            docType: docType 
+            docType: docType,
+            filename: `${rollNo}_${docType}`,
+            mimeType: docType === 'Photo' ? 'image/jpeg' : 'application/pdf',
+            folderName: docType === 'Photo' ? 'Profile Photo' : (docType === 'Resume' ? 'Resumes' : 'Certificates')
         }, { timeout: 30000 });
         
         const result = response.data;
@@ -392,13 +448,19 @@ const updatePassword = async (req, res) => {
         const { googleSheets, auth } = await connectSheet();
         const spreadsheetId = process.env.SPREADSHEET_ID;
 
-        const getRows = await googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: "Data!A:E" });
+        const getRows = await googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: "Data!A:AD" });
         const rows = getRows.data.values || [];
+        const headers = rows[0] || [];
         let targetRowIndex = -1;
-        for (let i = 0; i < rows.length; i++) {
-            if (rows[i][3] && rows[i][3].toLowerCase() === email.toLowerCase()) {
-                if (rows[i][4] !== currentPassword) return res.status(400).json({ success: false, message: "Incorrect current password." });
-                targetRowIndex = i + 1; break;
+        
+        // SEARCH BOTTOM UP
+        for (let i = rows.length - 1; i >= 1; i--) {
+            const rowEmail = getVal(rows[i], headers, ["email", "mail"], 3, "");
+            if (rowEmail && rowEmail.toLowerCase() === email.toLowerCase()) {
+                const rowPass = getVal(rows[i], headers, ["password", "pass"], 4, "");
+                if (rowPass !== currentPassword) return res.status(400).json({ success: false, message: "Incorrect current password." });
+                targetRowIndex = i + 1; 
+                break;
             }
         }
         if (targetRowIndex === -1) return res.status(404).json({ success: false, message: "User not found." });
@@ -439,8 +501,7 @@ const submitDriveResponse = async (req, res) => {
                     return res.status(400).json({ success: false, message: 'You have already submitted a response for this drive.' });
                 }
             }
-        } catch (e) {
-        }
+        } catch (e) {}
 
         const timestamp = new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" });
 
