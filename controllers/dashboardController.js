@@ -261,7 +261,7 @@ const markAttendance = async (req, res) => {
             const studentBranchKey = Object.keys(BRANCH_LOCATIONS).find(b => b.toLowerCase() === (branch || "").trim().toLowerCase());
             const targetCampus = studentBranchKey ? BRANCH_LOCATIONS[studentBranchKey] : BRANCH_LOCATIONS["Bangalore"];
             calculatedDistance = calculateDistanceInMeters(parseFloat(userLat), parseFloat(userLng), targetCampus.lat, targetCampus.lng);
-            if (calculatedDistance <= 500) isWithinGeofence = true;
+            if (calculatedDistance <= 1000) isWithinGeofence = true;
         }
 
         let alreadyMarked = false;
@@ -277,7 +277,7 @@ const markAttendance = async (req, res) => {
         if (!isScheduledToday) return res.status(400).json({ success: false, message: "No active session scheduled today." });
         if (!isTimeValid) return res.status(400).json({ success: false, message: "Attendance allowed only between 9:30 AM and 7:00 PM." });
         if (!userLat) return res.status(400).json({ success: false, message: "GPS required. Please enable Location Services." });
-        if (!isWithinGeofence) return res.status(400).json({ success: false, message: `Location Restriction. Must be within 500m of campus. (You are ${Math.round(calculatedDistance)}m away).` });
+        if (!isWithinGeofence) return res.status(400).json({ success: false, message: `Location Restriction. Must be within 1000m of campus. (You are ${Math.round(calculatedDistance)}m away).` });
 
         await googleSheets.spreadsheets.values.append({
             auth, spreadsheetId, range: "Talentino_Attendance!A:J", valueInputOption: "USER_ENTERED",
