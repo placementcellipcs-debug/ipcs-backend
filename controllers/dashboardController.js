@@ -65,44 +65,41 @@ const getDashboardData = async (req, res) => {
             const dataSheet = await googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: "Data!A:AD" });
             const userDataRows = dataSheet.data.values || [];
             
-            for (let i = 1; i < nlData.length; i++) {
-                let status = (nlData[i][29] || "yes").toLowerCase(); // Index 29 = Column AA (Status)
-                if (status.includes("no") || status.includes("closed") || status === "false") continue;
-                
-                // FIXED: Course is now Index 7 (Column H)
-                let rowCourse = (nlData[i][7] || "all").toLowerCase(); 
-                let isCourseMatch = false;
-
-                if (rowCourse.includes("all") || rowCourse === "") isCourseMatch = true;
-                else if (cleanStudentCourse && rowCourse.includes(cleanStudentCourse)) isCourseMatch = true;
-                else if (isStudentIT && rowCourse.includes("information technology")) isCourseMatch = true;
-                else if (cleanStudentCourse) isCourseMatch = cleanStudentCourse.split(" ").some(w => w.length > 3 && rowCourse.includes(w));
-
-                if (!isCourseMatch) continue;
-                
-                // FIXED: Company is Index 2 (Col C), Position is Index 5 (Col F)
-                let company = nlData[i][2] || "Placement Partner";
-                let position = nlData[i][5] || "Technical Role";
-                if (!company && !position) continue;
-
-                // FIXED: All indexes below now perfectly match the NewsLetter spreadsheet
-                vacancies.push({
-                    date: nlData[i][1] || "",                         // Col B
-                    company: company, 
-                    position: position, 
-                    state: nlData[i][6] || "OTHER STATES",            // Col G
-                    location: nlData[i][7] || "Multiple Locations",   // Col H
-                    modeOfWork: nlData[i][8] || "On-site",            // Col I
-                    openings: nlData[i][9] || "01-02",                // Col J
-                    qualification: nlData[i][10] || "Degree",         // Col K
-                    description: nlData[i][11] || "",                 // Col L
-                    experience: nlData[i][12] || "Fresher",           // Col M
-                    salary: nlData[i][13] || "Market Standard",       // Col N
-                    interviewDate: nlData[i][15] || "Will inform once scheduled", // Col P
-                    lastDate: nlData[i][16] || "Open",                // Col Q
-                    course: nlData[i][4] || "All",                    // Col E
-                    newsletterId: nlData[i][19] || nlData[i][20] || `JOB-${1000 + i}` 
-                });
+            for (let i = userDataRows.length - 1; i >= 1; i--) {
+                const rowEmail = userDataRows[i][3] || "";
+                if (rowEmail.toLowerCase() === email.toLowerCase()) {
+                    userInfo = {
+                        name: userDataRows[i][1] || "Student",
+                        phone: userDataRows[i][2] || "N/A",
+                        email: userDataRows[i][3],
+                        rollNo: userDataRows[i][5] || "N/A",
+                        joiningDate: userDataRows[i][6] || "N/A",
+                        course: userDataRows[i][7] || "N/A",
+                        branch: userDataRows[i][8] || "Bangalore",
+                        photo: userDataRows[i][9] || "",
+                        homeTown: userDataRows[i][10] || "N/A",
+                        qualification: userDataRows[i][11] || "N/A",
+                        stream: userDataRows[i][12] || "N/A",
+                        fresherStatus: userDataRows[i][13] || "N/A",
+                        linkedin: userDataRows[i][14] || "N/A",
+                        instagram: userDataRows[i][15] || "N/A",
+                        placementReq: userDataRows[i][16] || "N/A",
+                        friend1Name: userDataRows[i][17] || "N/A",
+                        friend1Phone: userDataRows[i][18] || "N/A",
+                        friend2Name: userDataRows[i][19] || "N/A",
+                        friend2Phone: userDataRows[i][20] || "N/A",
+                        resume: userDataRows[i][21] || "N/A",
+                        parentName: userDataRows[i][22] || "N/A",
+                        parentContact: userDataRows[i][23] || "N/A",
+                        studyStatus: userDataRows[i][24] || "Currently Studying",
+                        completedDate: userDataRows[i][25] || "N/A",
+                        age: userDataRows[i][26] || "N/A",
+                        gender: userDataRows[i][27] || "N/A",
+                        certificate: userDataRows[i][28] || "N/A",
+                        vacancyOpen: userDataRows[i][29] || "No"
+                    };
+                    break;
+                }
             }
         } catch(e) {}
 
@@ -191,9 +188,10 @@ const getDashboardData = async (req, res) => {
             const isStudentIT = itCoursesList.includes(cleanStudentCourse);
 
             for (let i = 1; i < nlData.length; i++) {
-                let status = (nlData[i][29] || "yes").toLowerCase();
+                let status = (nlData[i][18] || "yes").toLowerCase(); // Status is Index 18 (Col S)
                 if (status.includes("no") || status.includes("closed") || status === "false") continue;
-                let rowCourse = (nlData[i][7] || "all").toLowerCase();
+                
+                let rowCourse = (nlData[i][4] || "all").toLowerCase(); // Course is Index 4 (Col E)
                 let isCourseMatch = false;
 
                 if (rowCourse.includes("all") || rowCourse === "") isCourseMatch = true;
@@ -202,15 +200,32 @@ const getDashboardData = async (req, res) => {
                 else if (cleanStudentCourse) isCourseMatch = cleanStudentCourse.split(" ").some(w => w.length > 3 && rowCourse.includes(w));
 
                 if (!isCourseMatch) continue;
-                let company = nlData[i][2] || "Placement Partner";
-                let position = nlData[i][4] || "Technical Role";
+                
+                let company = nlData[i][2] || "Placement Partner"; // Company is Index 2 (Col C)
+                let position = nlData[i][5] || "Technical Role";   // Position is Index 5 (Col F)
                 if (!company && !position) continue;
 
                 vacancies.push({
-                    date: nlData[i][1] || "", company: company, position: position, state: nlData[i][5] || "OTHER STATES", location: nlData[i][6] || "Multiple Locations", modeOfWork: nlData[i][7] || "On-site", openings: nlData[i][8] || "01-02", qualification: nlData[i][9] || "Degree", description: nlData[i][10] || "", experience: nlData[i][11] || "Fresher", salary: nlData[i][12] || "Market Standard", interviewDate: nlData[i][14] || "Will inform once scheduled", lastDate: nlData[i][15] || "Open", course: nlData[i][16] || "All", newsletterId: nlData[i][19] || nlData[i][20] || `JOB-${1000 + i}`
+                    date: nlData[i][1] || "",                         // Col B
+                    company: company, 
+                    position: position, 
+                    state: nlData[i][6] || "OTHER STATES",            // Col G
+                    location: nlData[i][7] || "Multiple Locations",   // Col H
+                    modeOfWork: nlData[i][8] || "On-site",            // Col I
+                    openings: nlData[i][9] || "01-02",                // Col J
+                    qualification: nlData[i][10] || "Degree",         // Col K
+                    description: nlData[i][11] || "",                 // Col L
+                    experience: nlData[i][12] || "Fresher",           // Col M
+                    salary: nlData[i][13] || "Market Standard",       // Col N
+                    interviewDate: nlData[i][15] || "Will inform once scheduled", // Col P
+                    lastDate: nlData[i][16] || "Open",                // Col Q
+                    course: nlData[i][4] || "All",                    // Col E
+                    newsletterId: nlData[i][19] || nlData[i][20] || `JOB-${1000 + i}` 
                 });
             }
-        } catch (e) {}
+        } catch (e) {
+            console.error("Vacancies loop error:", e);
+        }
 
         let tpoInfo = { name: "Placement Officer", email: "placement@ipcsglobal.com", phone: "N/A", sittingBranch: "N/A", assignedBranches: "N/A", profilePhoto: "" };
         try {
@@ -305,7 +320,7 @@ const applyForJob = async (req, res) => {
             for (let i = 1; i < nlData.length; i++) {
                 let currentId = nlData[i][19] || nlData[i][20] || `JOB-${1000 + i}`;
                 if (currentId.toString().trim() === jobId.toString().trim()) {
-                    position = nlData[i][5] || "N/A"; // <-- CHANGED 4 to 5 (Column F)
+                    position = nlData[i][5] || "N/A"; 
                     placementOfficer = nlData[i][17] || "TPO Auto-Assigned"; break;
                 }
             }
@@ -340,7 +355,6 @@ const updateProfile = async (req, res) => {
         
         if (targetRowIndex === -1) return res.status(404).json({ success: false, message: "User not found." });
 
-        // PERFECTLY MAPPED BATCH UPDATE RANGES
         await googleSheets.spreadsheets.values.batchUpdate({
             auth, spreadsheetId,
             resource: {
@@ -435,7 +449,6 @@ const uploadDocument = async (req, res) => {
             }
             
             if (targetRowIndex !== -1) {
-                // MAPPED TO NEW SCREENSHOTS: J for Photo, V for Resume, AC for Certificate
                 let columnLetter = docType === 'Photo' ? 'J' : (docType === 'Resume' ? 'V' : 'AC');
                 await googleSheets.spreadsheets.values.update({
                     auth, 
@@ -484,19 +497,17 @@ const updatePassword = async (req, res) => {
 
 const submitIssue = async (req, res) => {
     try {
-        // We now pull 'phone' from the frontend request
-        const { email, name, phone, branch, course, issueDetails, location } = req.body;
+        const { email, name, phone, rollNo, branch, course, issueDetails, location } = req.body;
         
         const { googleSheets, auth } = await connectSheet();
         const spreadsheetId = process.env.SPREADSHEET_ID;
         const timestamp = new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" });
 
-        // PERFECTLY MAPPED TO YOUR NEW 11-COLUMN ISSUES TAB
         const newTicket = [
             timestamp,                  // A: Timestamp
             name,                       // B: Name
-            phone || "N/A",             // C: Contact Number (NEW COLUMN)
-            req.body.rollNo || "N/A",   // D: Roll No 
+            phone || "N/A",             // C: Contact Number
+            rollNo || "N/A",            // D: Roll No 
             email,                      // E: Mail ID
             branch || "Bangalore",      // F: Branch
             course || "N/A",            // G: Course
@@ -509,7 +520,7 @@ const submitIssue = async (req, res) => {
         await googleSheets.spreadsheets.values.append({
             auth, 
             spreadsheetId, 
-            range: "Issues!A:K", // Expanded range to A:K
+            range: "Issues!A:K", 
             valueInputOption: "USER_ENTERED",
             resource: { values: [newTicket] },
         });
