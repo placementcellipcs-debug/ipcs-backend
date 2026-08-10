@@ -66,11 +66,11 @@ const getDashboardData = async (req, res) => {
             const userDataRows = dataSheet.data.values || [];
             
             for (let i = 1; i < nlData.length; i++) {
-                let status = (nlData[i][18] || "yes").toLowerCase(); // Index 18 = Column S (Status)
+                let status = (nlData[i][29] || "yes").toLowerCase(); // Index 29 = Column AA (Status)
                 if (status.includes("no") || status.includes("closed") || status === "false") continue;
                 
-                // FIXED: Course is now Index 4 (Column E)
-                let rowCourse = (nlData[i][4] || "all").toLowerCase(); 
+                // FIXED: Course is now Index 7 (Column H)
+                let rowCourse = (nlData[i][7] || "all").toLowerCase(); 
                 let isCourseMatch = false;
 
                 if (rowCourse.includes("all") || rowCourse === "") isCourseMatch = true;
@@ -191,9 +191,9 @@ const getDashboardData = async (req, res) => {
             const isStudentIT = itCoursesList.includes(cleanStudentCourse);
 
             for (let i = 1; i < nlData.length; i++) {
-                let status = (nlData[i][18] || "yes").toLowerCase();
+                let status = (nlData[i][29] || "yes").toLowerCase();
                 if (status.includes("no") || status.includes("closed") || status === "false") continue;
-                let rowCourse = (nlData[i][16] || "all").toLowerCase();
+                let rowCourse = (nlData[i][7] || "all").toLowerCase();
                 let isCourseMatch = false;
 
                 if (rowCourse.includes("all") || rowCourse === "") isCourseMatch = true;
