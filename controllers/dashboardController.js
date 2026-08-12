@@ -183,7 +183,7 @@ const getDashboardData = async (req, res) => {
         try {
             const nlSheet = await googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: "NewsLetter!A:U" });
             const nlData = nlSheet.data.values || [];
-            const cleanStudentCourse = (userInfo.course || "").trim().toLowerCase();
+            const cleanStudentCourse = (studentCourse || "").toString().trim().toLowerCase();
             const itCoursesList = ["python and data science", "artificial intelligence", "python full stack", "java full stack", "mern stack", "cyber security"];
             const isStudentIT = itCoursesList.includes(cleanStudentCourse);
 
