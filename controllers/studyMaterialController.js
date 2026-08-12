@@ -51,7 +51,7 @@ const getStudyMaterialsList = async (req, res) => {
         let materials = [];
         const matSheet = await googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: "Study_Materials!A:G" });
         const matData = matSheet.data.values || [];
-        const cleanStudentCourse = studentCourse.trim().toLowerCase();
+        const cleanStudentCourse = (studentCourse || "").toString().trim().toLowerCase();
 
         for (let i = 1; i < matData.length; i++) {
             const rowStatus = (matData[i][6] || "active").toLowerCase();
@@ -87,7 +87,14 @@ const getStudyMaterialsList = async (req, res) => {
 const streamMaterialPdf = async (req, res) => {
     try {
         const { oneDriveLink, email } = req.body;
-        if (!oneDriveLink) return res.status(400).json({ success: false, message: "No link provided." });
+        
+        if (!oneDriveLink || !oneDriveLink.startsWith('http')) {
+            return res.status(400).json({ success: false, message: "Invalid Link Format in Database. The URL must start with http/https." });
+        }
+        
+        if (oneDriveLink.includes('drive.google.com')) {
+            return res.status(400).json({ success: false, message: "Google Drive links should be handled directly by the frontend." });
+        }
 
         // Generate Microsoft Authorization Token
         const token = await getMsAccessToken();
@@ -120,7 +127,7 @@ const streamMaterialPdf = async (req, res) => {
 
     } catch (error) {
         console.error("PDF Conversion Error:", error.response?.data || error.message);
-        res.status(500).json({ success: false, message: "Error securely generating PDF stream." });
+        res.status(500).json({ success: false, message: "Microsoft rejected the link. Ensure it is a valid OneDrive Share Link." });
     }
 };
 
