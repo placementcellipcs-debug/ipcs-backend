@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const dashboardController = require('../controllers/dashboardController');
+const { getStudyMaterialsList, streamMaterialPdf } = require('../controllers/studyMaterialController');
 
 // Dashboard endpoints
 router.post('/data', dashboardController.getDashboardData);
@@ -19,3 +20,6 @@ router.post('/profile/password', dashboardController.updatePassword);
 router.post('/support/issue', dashboardController.submitIssue);
 
 module.exports = router;
+
+router.post('/study-materials', getStudyMaterialsList);
+router.post('/study-materials/stream', streamMaterialPdf);
