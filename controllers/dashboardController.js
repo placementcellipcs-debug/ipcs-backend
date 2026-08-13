@@ -1,5 +1,9 @@
 const connectSheet = require('../config/db');
 const axios = require('axios');
+const NodeCache = require('node-cache');
+
+// Initialize NodeCache: Default Time-To-Live (TTL) is 180 seconds (3 minutes)
+const cache = new NodeCache({ stdTTL: 180, checkperiod: 120 });
 
 // Exponential Backoff Retry Function to handle Google Sheets API limits
 const withRetry = async (fn, retries = 5, delay = 1000) => {
@@ -7,13 +11,12 @@ const withRetry = async (fn, retries = 5, delay = 1000) => {
         try {
             return await fn();
         } catch (error) {
-            // If it's the last retry, or the error IS NOT a rate limit, throw it immediately
             if (i === retries - 1 || (error.code !== 429 && !error.message?.includes('quota') && !error.message?.includes('rate limit'))) {
                 throw error;
             }
             console.log(`Google API Rate Limit hit. Retrying in ${delay}ms... (Attempt ${i + 1} of ${retries})`);
             await new Promise(res => setTimeout(res, delay));
-            delay *= 2; // Double the wait time on each failure (1s, 2s, 4s, 8s)
+            delay *= 2;
         }
     }
 };
@@ -74,6 +77,14 @@ function calculateDistanceInMeters(lat1, lon1, lat2, lon2) {
 const getDashboardData = async (req, res) => {
     try {
         const { email, branch } = req.body;
+        const cacheKey = `dashboard_${email.toLowerCase().trim()}_${(branch || 'Bangalore').toLowerCase().trim()}`;
+
+        // 1. CHECK IF DASHBOARD DATA IS IN RAM CACHE
+        const cachedDashboard = cache.get(cacheKey);
+        if (cachedDashboard) {
+            return res.status(200).json(cachedDashboard);
+        }
+
         const { googleSheets, auth } = await connectSheet();
         const spreadsheetId = process.env.SPREADSHEET_ID;
 
@@ -205,10 +216,10 @@ const getDashboardData = async (req, res) => {
             const isStudentIT = itCoursesList.includes(cleanStudentCourse);
 
             for (let i = 1; i < nlData.length; i++) {
-                let status = (nlData[i][18] || "yes").toLowerCase(); // Status is Index 18 (Col S)
+                let status = (nlData[i][18] || "yes").toLowerCase();
                 if (status.includes("no") || status.includes("closed") || status === "false") continue;
                 
-                let rowCourse = (nlData[i][4] || "all").toLowerCase(); // Course is Index 4 (Col E)
+                let rowCourse = (nlData[i][4] || "all").toLowerCase();
                 let isCourseMatch = false;
 
                 if (rowCourse.includes("all") || rowCourse === "") isCourseMatch = true;
@@ -218,25 +229,25 @@ const getDashboardData = async (req, res) => {
 
                 if (!isCourseMatch) continue;
                 
-                let company = nlData[i][2] || "Placement Partner"; // Company is Index 2 (Col C)
-                let position = nlData[i][5] || "Technical Role";   // Position is Index 5 (Col F)
+                let company = nlData[i][2] || "Placement Partner";
+                let position = nlData[i][5] || "Technical Role";
                 if (!company && !position) continue;
 
                 vacancies.push({
-                    date: nlData[i][1] || "",                         // Col B
+                    date: nlData[i][1] || "",
                     company: company, 
                     position: position, 
-                    state: nlData[i][6] || "OTHER STATES",            // Col G
-                    location: nlData[i][7] || "Multiple Locations",   // Col H
-                    modeOfWork: nlData[i][8] || "On-site",            // Col I
-                    openings: nlData[i][9] || "01-02",                // Col J
-                    qualification: nlData[i][10] || "Degree",         // Col K
-                    description: nlData[i][11] || "",                 // Col L
-                    experience: nlData[i][12] || "Fresher",           // Col M
-                    salary: nlData[i][13] || "Market Standard",       // Col N
-                    interviewDate: nlData[i][15] || "Will inform once scheduled", // Col P
-                    lastDate: nlData[i][16] || "Open",                // Col Q
-                    course: nlData[i][4] || "All",                    // Col E
+                    state: nlData[i][6] || "OTHER STATES",
+                    location: nlData[i][7] || "Multiple Locations",
+                    modeOfWork: nlData[i][8] || "On-site",
+                    openings: nlData[i][9] || "01-02",
+                    qualification: nlData[i][10] || "Degree",
+                    description: nlData[i][11] || "",
+                    experience: nlData[i][12] || "Fresher",
+                    salary: nlData[i][13] || "Market Standard",
+                    interviewDate: nlData[i][15] || "Will inform once scheduled",
+                    lastDate: nlData[i][16] || "Open",
+                    course: nlData[i][4] || "All",
                     newsletterId: nlData[i][19] || nlData[i][20] || `JOB-${1000 + i}` 
                 });
             }
@@ -265,7 +276,12 @@ const getDashboardData = async (req, res) => {
             }
         } catch (e) {}
 
-        res.status(200).json({ success: true, userInfo, stats, appliedJobs, events, attendanceHistory, isScheduledToday, hasMarkedToday, vacancies, tpoInfo, driveRSVPs });
+        const responsePayload = { success: true, userInfo, stats, appliedJobs, events, attendanceHistory, isScheduledToday, hasMarkedToday, vacancies, tpoInfo, driveRSVPs };
+
+        // 2. STORE RESPONSE IN RAM CACHE BEFORE SENDING
+        cache.set(cacheKey, responsePayload);
+
+        res.status(200).json(responsePayload);
     } catch (error) { res.status(500).json({ success: false, message: "Server Error fetching dashboard." }); }
 };
 
@@ -321,6 +337,9 @@ const markAttendance = async (req, res) => {
             })
         );
 
+        // CLEAR RAM CACHE FOR THIS USER SO NEW ATTENDANCE SHOWS INSTANTLY
+        cache.del(`dashboard_${email.toLowerCase().trim()}_${(branch || 'Bangalore').toLowerCase().trim()}`);
+
         res.status(200).json({ success: true, message: "Attendance marked successfully!" });
     } catch (error) { res.status(500).json({ success: false, message: "Failed to submit attendance." }); }
 };
@@ -352,13 +371,16 @@ const applyForJob = async (req, res) => {
             })
         );
 
+        // CLEAR RAM CACHE
+        cache.del(`dashboard_${email.toLowerCase().trim()}_${(branch || 'Bangalore').toLowerCase().trim()}`);
+
         res.status(200).json({ success: true, message: "Applied successfully!" });
     } catch (error) { res.status(500).json({ success: false, message: "Failed to apply for job." }); }
 };
 
 const updateProfile = async (req, res) => {
     try {
-        const { email, age, gender, studyStatus, completedDate, stream, homeTown, fresherStatus, qualification, linkedin, instagram, placementReq, parentName, parentContact } = req.body;
+        const { email, age, gender, studyStatus, completedDate, stream, homeTown, fresherStatus, qualification, linkedin, instagram, placementReq, parentName, parentContact, branch } = req.body;
         const { googleSheets, auth } = await connectSheet();
         const spreadsheetId = process.env.SPREADSHEET_ID;
 
@@ -426,13 +448,16 @@ const updateProfile = async (req, res) => {
             vacancyOpen: updatedRow[29] || "No"
         };
 
+        // CLEAR RAM CACHE
+        cache.del(`dashboard_${email.toLowerCase().trim()}_${(branch || 'Bangalore').toLowerCase().trim()}`);
+
         res.status(200).json({ success: true, message: "Profile updated successfully!", user: completeUserObj });
     } catch (error) { res.status(500).json({ success: false, message: "Failed to update profile." }); }
 };
 
 const uploadDocument = async (req, res) => {
     try {
-        const { email, rollNo, base64, docType } = req.body;
+        const { email, rollNo, base64, docType, branch } = req.body;
         
         const base64Clean = docType === 'Photo' 
             ? base64.replace(/^data:image\/\w+;base64,/, "") 
@@ -486,6 +511,9 @@ const uploadDocument = async (req, res) => {
         } catch (sheetUpdateErr) {
             console.log("Failed to write document URL to sheet, but upload succeeded.", sheetUpdateErr);
         }
+
+        // CLEAR RAM CACHE
+        cache.del(`dashboard_${email.toLowerCase().trim()}_${(branch || 'Bangalore').toLowerCase().trim()}`);
 
         res.status(200).json({ success: true, message: `${docType} uploaded successfully!`, url: result.url });
     } catch (error) { 
@@ -603,6 +631,9 @@ const submitDriveResponse = async (req, res) => {
                 },
             })
         );
+
+        // CLEAR RAM CACHE
+        cache.del(`dashboard_${email.toLowerCase().trim()}_${(branch || 'Bangalore').toLowerCase().trim()}`);
 
         res.status(200).json({ success: true, message: `Status updated to: ${status}` });
     } catch (error) {

@@ -19,6 +19,7 @@
     "googleapis": "^173.0.0",
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.9.1",
+    "node-cache": "^5.1.2",
     "nodemailer": "^9.0.4"
   },
   "devDependencies": {
