@@ -83,51 +83,43 @@ const getStudyMaterialsList = async (req, res) => {
     }
 };
 
-// 2. Secretly Download, Convert to PDF, and Stream
+// 2. Format Link for Secure Iframe Embedding
 const streamMaterialPdf = async (req, res) => {
     try {
-        const { oneDriveLink, email } = req.body;
+        const { oneDriveLink } = req.body;
         
         if (!oneDriveLink || !oneDriveLink.startsWith('http')) {
-            return res.status(400).json({ success: false, message: "Invalid Link Format in Database. The URL must start with http/https." });
-        }
-        
-        if (oneDriveLink.includes('drive.google.com')) {
-            return res.status(400).json({ success: false, message: "Google Drive links should be handled directly by the frontend." });
+            return res.status(400).json({ success: false, message: "Invalid Link Format in Database." });
         }
 
-        // Generate Microsoft Authorization Token
-        const token = await getMsAccessToken();
+        let embedUrl = oneDriveLink;
 
-        // Encode the OneDrive Share Link into Microsoft Graph format
-        const encodedUrl = Buffer.from(oneDriveLink)
-            .toString('base64')
-            .replace(/=/g, '')
-            .replace(/\//g, '_')
-            .replace(/\+/g, '-');
-        
-        const shareId = "u!" + encodedUrl;
+        // --- FORMAT GOOGLE DRIVE LINKS ---
+        if (embedUrl.includes('drive.google.com')) {
+            if (embedUrl.includes('/view')) {
+                embedUrl = embedUrl.replace(/\/view.*/, '/preview'); // Forces preview mode (no toolbars)
+            } else if (!embedUrl.includes('/preview')) {
+                const match = embedUrl.match(/\/d\/([a-zA-Z0-9_-]+)/);
+                if (match) {
+                    embedUrl = `https://drive.google.com/file/d/${match[1]}/preview`;
+                }
+            }
+        } 
+        // --- FORMAT ONEDRIVE / SHAREPOINT LINKS ---
+        else if (embedUrl.includes('onedrive.live.com') || embedUrl.includes('sharepoint.com')) {
+            if (embedUrl.includes('?')) {
+                embedUrl += '&action=embedview&wdStartOn=1'; // Forces OneDrive embed view
+            } else {
+                embedUrl += '?action=embedview&wdStartOn=1';
+            }
+        }
 
-        // Tell Microsoft to grab the file and convert it to a PDF instantly
-        const graphUrl = `https://graph.microsoft.com/v1.0/shares/${shareId}/driveItem/content?format=pdf`;
-
-        const pdfResponse = await axios({
-            method: 'GET',
-            url: graphUrl,
-            headers: { Authorization: `Bearer ${token}` },
-            responseType: 'stream'
-        });
-
-        // Set headers so the frontend knows it's receiving a raw PDF
-        res.setHeader('Content-Type', 'application/pdf');
-        res.setHeader('Content-Disposition', 'inline; filename="Secure_Study_Material.pdf"');
-        
-        // Pipe the raw PDF data directly to the frontend
-        pdfResponse.data.pipe(res);
+        // Send the formatted embed URL back to the frontend
+        return res.status(200).json({ success: true, embedUrl });
 
     } catch (error) {
-        console.error("PDF Conversion Error:", error.response?.data || error.message);
-        res.status(500).json({ success: false, message: "Microsoft rejected the link. Ensure it is a valid OneDrive Share Link." });
+        console.error("Material Viewer Error:", error);
+        res.status(500).json({ success: false, message: "Failed to process the document link." });
     }
 };
 
