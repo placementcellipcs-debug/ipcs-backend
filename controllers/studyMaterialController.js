@@ -1,24 +1,20 @@
 const connectSheet = require('../config/db');
-const axios = require('axios');
 
-// Helper Function: Get Microsoft Access Token
-const getMsAccessToken = async () => {
-    const tenantId = process.env.MS_TENANT_ID;
-    const clientId = process.env.MS_CLIENT_ID;
-    const clientSecret = process.env.MS_CLIENT_SECRET;
-
-    const tokenUrl = `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`;
-    const data = new URLSearchParams({
-        client_id: clientId,
-        scope: 'https://graph.microsoft.com/.default',
-        client_secret: clientSecret,
-        grant_type: 'client_credentials'
-    });
-
-    const response = await axios.post(tokenUrl, data, {
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
-    });
-    return response.data.access_token;
+// Exponential Backoff Retry Function to handle Google Sheets API limits
+const withRetry = async (fn, retries = 5, delay = 1000) => {
+    for (let i = 0; i < retries; i++) {
+        try {
+            return await fn();
+        } catch (error) {
+            // If it's the last retry, or the error IS NOT a rate limit, throw it immediately
+            if (i === retries - 1 || (error.code !== 429 && !error.message?.includes('quota') && !error.message?.includes('rate limit'))) {
+                throw error;
+            }
+            console.log(`Google API Rate Limit hit. Retrying in ${delay}ms... (Attempt ${i + 1} of ${retries})`);
+            await new Promise(res => setTimeout(res, delay));
+            delay *= 2; // Double the wait time on each failure (1s, 2s, 4s, 8s)
+        }
+    }
 };
 
 // 1. Fetch the list of materials for the student
@@ -28,8 +24,10 @@ const getStudyMaterialsList = async (req, res) => {
         const { googleSheets, auth } = await connectSheet();
         const spreadsheetId = process.env.SPREADSHEET_ID;
 
-        // Verify Student Access in Data Tab (Column AE / Index 30)
-        const dataSheet = await googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: "Data!A:AE" });
+        // WRAPPED WITH RETRY: Verify Student Access in Data Tab (Column AE / Index 30)
+        const dataSheet = await withRetry(() => 
+            googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: "Data!A:AE" })
+        );
         const userDataRows = dataSheet.data.values || [];
         let hasAccess = false;
         let studentCourse = course || "";
@@ -47,9 +45,11 @@ const getStudyMaterialsList = async (req, res) => {
             return res.status(403).json({ success: false, message: "Access Restricted: You do not have permission to view Study Materials." });
         }
 
-        // Fetch Materials
+        // WRAPPED WITH RETRY: Fetch Materials
         let materials = [];
-        const matSheet = await googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: "Study_Materials!A:G" });
+        const matSheet = await withRetry(() => 
+            googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: "Study_Materials!A:G" })
+        );
         const matData = matSheet.data.values || [];
         const cleanStudentCourse = (studentCourse || "").toString().trim().toLowerCase();
 

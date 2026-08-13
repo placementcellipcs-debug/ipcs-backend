@@ -1,6 +1,23 @@
 const connectSheet = require('../config/db');
 const axios = require('axios');
 
+// Exponential Backoff Retry Function to handle Google Sheets API limits
+const withRetry = async (fn, retries = 5, delay = 1000) => {
+    for (let i = 0; i < retries; i++) {
+        try {
+            return await fn();
+        } catch (error) {
+            // If it's the last retry, or the error IS NOT a rate limit, throw it immediately
+            if (i === retries - 1 || (error.code !== 429 && !error.message?.includes('quota') && !error.message?.includes('rate limit'))) {
+                throw error;
+            }
+            console.log(`Google API Rate Limit hit. Retrying in ${delay}ms... (Attempt ${i + 1} of ${retries})`);
+            await new Promise(res => setTimeout(res, delay));
+            delay *= 2; // Double the wait time on each failure (1s, 2s, 4s, 8s)
+        }
+    }
+};
+
 const BRANCH_LOCATIONS = {
   "Kochi": { lat: 9.9934, lng: 76.2904 }, 
   "Calicut": { lat: 11.259287, lng: 75.780641 },
@@ -62,7 +79,7 @@ const getDashboardData = async (req, res) => {
 
         let userInfo = {};
         try {
-            const dataSheet = await googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: "Data!A:AD" });
+            const dataSheet = await withRetry(() => googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: "Data!A:AD" }));
             const userDataRows = dataSheet.data.values || [];
             
             for (let i = userDataRows.length - 1; i >= 1; i--) {
@@ -105,7 +122,7 @@ const getDashboardData = async (req, res) => {
 
         let appliedJobs = [], stats = { applied: 0, interviews: 0, offers: 0, attended: 0, totalConducted: 0, onLeave: 0 };
         try {
-            const applySheet = await googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: "Opening_Applied!A:O" });
+            const applySheet = await withRetry(() => googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: "Opening_Applied!A:O" }));
             const appData = applySheet.data.values || [];
             for (let i = 1; i < appData.length; i++) {
                 if (appData[i][3] && appData[i][3].toLowerCase() === email.toLowerCase()) {
@@ -120,7 +137,7 @@ const getDashboardData = async (req, res) => {
 
         let events = [];
         try {
-            const eventSheet = await googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: "Event!A:I" });
+            const eventSheet = await withRetry(() => googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: "Event!A:I" }));
             const evData = eventSheet.data.values || [];
             for (let i = 1; i < evData.length; i++) {
                 let evBranch = (evData[i][1] || "all").toLowerCase();
@@ -143,7 +160,7 @@ const getDashboardData = async (req, res) => {
 
         let driveRSVPs = [];
         try {
-            const driveSheet = await googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: "Drive_Registration!A:J" });
+            const driveSheet = await withRetry(() => googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: "Drive_Registration!A:J" }));
             const driveData = driveSheet.data.values || [];
             for (let i = 1; i < driveData.length; i++) {
                 if (driveData[i][3] && driveData[i][3].toLowerCase() === email.toLowerCase()) {
@@ -155,7 +172,7 @@ const getDashboardData = async (req, res) => {
         let attendanceHistory = [], hasMarkedToday = false, isScheduledToday = false;
         const now = new Date(), todayStr = now.toLocaleDateString('en-GB');
         try {
-            const schedSheet = await googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: "Talentino_Schedule!A:D" });
+            const schedSheet = await withRetry(() => googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: "Talentino_Schedule!A:D" }));
             const schedData = schedSheet.data.values || [];
             for (let i = 1; i < schedData.length; i++) {
                 const schedBranch = (schedData[i][2] || "").toLowerCase();
@@ -164,7 +181,7 @@ const getDashboardData = async (req, res) => {
                     if (isSameDay(schedData[i][0], now)) isScheduledToday = true;
                 }
             }
-            const attSheet = await googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: "Talentino_Attendance!A:J" });
+            const attSheet = await withRetry(() => googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: "Talentino_Attendance!A:J" }));
             const attData = attSheet.data.values || [];
             for (let i = 1; i < attData.length; i++) {
                 if (attData[i][1] && attData[i][1].toLowerCase() === email.toLowerCase()) {
@@ -181,7 +198,7 @@ const getDashboardData = async (req, res) => {
 
         let vacancies = [];
         try {
-            const nlSheet = await googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: "NewsLetter!A:U" });
+            const nlSheet = await withRetry(() => googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: "NewsLetter!A:U" }));
             const nlData = nlSheet.data.values || [];
             const cleanStudentCourse = (userInfo.course || "").trim().toLowerCase();
             const itCoursesList = ["python and data science", "artificial intelligence", "python full stack", "java full stack", "mern stack", "cyber security"];
@@ -229,7 +246,7 @@ const getDashboardData = async (req, res) => {
 
         let tpoInfo = { name: "Placement Officer", email: "placement@ipcsglobal.com", phone: "N/A", sittingBranch: "N/A", assignedBranches: "N/A", profilePhoto: "" };
         try {
-            const contactSheet = await googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: "Contact!A:H" });
+            const contactSheet = await withRetry(() => googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: "Contact!A:H" }));
             const contactData = contactSheet.data.values || [];
             
             for (let k = 1; k < contactData.length; k++) {
@@ -266,7 +283,7 @@ const markAttendance = async (req, res) => {
         const isTimeValid = (currentTimeMins >= (9 * 60 + 30) && currentTimeMins <= (19 * 60));
 
         let isScheduledToday = false;
-        const schedSheet = await googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: "Talentino_Schedule!A:D" });
+        const schedSheet = await withRetry(() => googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: "Talentino_Schedule!A:D" }));
         const schedData = schedSheet.data.values || [];
         for (let i = 1; i < schedData.length; i++) {
             if ((schedData[i][2] || "").toLowerCase().includes((branch || "").toLowerCase()) && isSameDay(schedData[i][0], now)) {
@@ -283,7 +300,7 @@ const markAttendance = async (req, res) => {
         }
 
         let alreadyMarked = false;
-        const attSheet = await googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: "Talentino_Attendance!A:J" });
+        const attSheet = await withRetry(() => googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: "Talentino_Attendance!A:J" }));
         const attData = attSheet.data.values || [];
         for (let i = 1; i < attData.length; i++) {
             if (attData[i][1] && attData[i][1].toLowerCase() === email.toLowerCase()) {
@@ -297,10 +314,12 @@ const markAttendance = async (req, res) => {
         if (!userLat) return res.status(400).json({ success: false, message: "GPS required. Please enable Location Services." });
         if (!isWithinGeofence) return res.status(400).json({ success: false, message: `Location Restriction. Must be within 1000m of campus. (You are ${Math.round(calculatedDistance)}m away).` }); 
 
-        await googleSheets.spreadsheets.values.append({
-            auth, spreadsheetId, range: "Talentino_Attendance!A:J", valueInputOption: "USER_ENTERED",
-            resource: { values: [[timestamp, email, name, branch, course, location, `${rating} / 5 Stars`, feedback || "None", dateOnly, "None"]] },
-        });
+        await withRetry(() => 
+            googleSheets.spreadsheets.values.append({
+                auth, spreadsheetId, range: "Talentino_Attendance!A:J", valueInputOption: "USER_ENTERED",
+                resource: { values: [[timestamp, email, name, branch, course, location, `${rating} / 5 Stars`, feedback || "None", dateOnly, "None"]] },
+            })
+        );
 
         res.status(200).json({ success: true, message: "Attendance marked successfully!" });
     } catch (error) { res.status(500).json({ success: false, message: "Failed to submit attendance." }); }
@@ -315,7 +334,7 @@ const applyForJob = async (req, res) => {
 
         let position = "N/A", placementOfficer = "TPO Auto-Assigned";
         try {
-            const nlSheet = await googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: "NewsLetter!A:U" });
+            const nlSheet = await withRetry(() => googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: "NewsLetter!A:U" }));
             const nlData = nlSheet.data.values || [];
             for (let i = 1; i < nlData.length; i++) {
                 let currentId = nlData[i][19] || nlData[i][20] || `JOB-${1000 + i}`;
@@ -326,10 +345,12 @@ const applyForJob = async (req, res) => {
             }
         } catch (e) { }
 
-        await googleSheets.spreadsheets.values.append({
-            auth, spreadsheetId, range: "Opening_Applied!A:N", valueInputOption: "USER_ENTERED",
-            resource: { values: [[timestamp, name, phone, email, rollNo, course, branch, qualification || "N/A", resume || "N/A", jobId, companyName || "N/A", position, placementOfficer, "Applied"]] },
-        });
+        await withRetry(() => 
+            googleSheets.spreadsheets.values.append({
+                auth, spreadsheetId, range: "Opening_Applied!A:N", valueInputOption: "USER_ENTERED",
+                resource: { values: [[timestamp, name, phone, email, rollNo, course, branch, qualification || "N/A", resume || "N/A", jobId, companyName || "N/A", position, placementOfficer, "Applied"]] },
+            })
+        );
 
         res.status(200).json({ success: true, message: "Applied successfully!" });
     } catch (error) { res.status(500).json({ success: false, message: "Failed to apply for job." }); }
@@ -341,7 +362,7 @@ const updateProfile = async (req, res) => {
         const { googleSheets, auth } = await connectSheet();
         const spreadsheetId = process.env.SPREADSHEET_ID;
 
-        const getRows = await googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: "Data!A:AD" });
+        const getRows = await withRetry(() => googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: "Data!A:AD" }));
         const rows = getRows.data.values || [];
         let targetRowIndex = -1;
         
@@ -355,20 +376,22 @@ const updateProfile = async (req, res) => {
         
         if (targetRowIndex === -1) return res.status(404).json({ success: false, message: "User not found." });
 
-        await googleSheets.spreadsheets.values.batchUpdate({
-            auth, spreadsheetId,
-            resource: {
-                valueInputOption: "USER_ENTERED",
-                data: [
-                    { range: `Data!K${targetRowIndex}:Q${targetRowIndex}`, values: [[homeTown || "N/A", qualification || "N/A", stream || "N/A", fresherStatus || "N/A", linkedin || "N/A", instagram || "N/A", placementReq || "N/A"]] },
-                    { range: `Data!W${targetRowIndex}:X${targetRowIndex}`, values: [[parentName || "N/A", parentContact || "N/A"]] },
-                    { range: `Data!Y${targetRowIndex}:Z${targetRowIndex}`, values: [[studyStatus || "Currently Studying", completedDate || "N/A"]] },
-                    { range: `Data!AA${targetRowIndex}:AB${targetRowIndex}`, values: [[age || "N/A", gender || "N/A"]] }
-                ]
-            }
-        });
+        await withRetry(() => 
+            googleSheets.spreadsheets.values.batchUpdate({
+                auth, spreadsheetId,
+                resource: {
+                    valueInputOption: "USER_ENTERED",
+                    data: [
+                        { range: `Data!K${targetRowIndex}:Q${targetRowIndex}`, values: [[homeTown || "N/A", qualification || "N/A", stream || "N/A", fresherStatus || "N/A", linkedin || "N/A", instagram || "N/A", placementReq || "N/A"]] },
+                        { range: `Data!W${targetRowIndex}:X${targetRowIndex}`, values: [[parentName || "N/A", parentContact || "N/A"]] },
+                        { range: `Data!Y${targetRowIndex}:Z${targetRowIndex}`, values: [[studyStatus || "Currently Studying", completedDate || "N/A"]] },
+                        { range: `Data!AA${targetRowIndex}:AB${targetRowIndex}`, values: [[age || "N/A", gender || "N/A"]] }
+                    ]
+                }
+            })
+        );
 
-        const updatedSheet = await googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: `Data!A:AD` });
+        const updatedSheet = await withRetry(() => googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: `Data!A:AD` }));
         const allRows = updatedSheet.data.values || [];
         const updatedRow = allRows[targetRowIndex - 1];
 
@@ -437,7 +460,7 @@ const uploadDocument = async (req, res) => {
         try {
             const { googleSheets, auth } = await connectSheet();
             const spreadsheetId = process.env.SPREADSHEET_ID;
-            const getRows = await googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: "Data!A:D" });
+            const getRows = await withRetry(() => googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: "Data!A:D" }));
             const rows = getRows.data.values || [];
             let targetRowIndex = -1;
             
@@ -450,13 +473,15 @@ const uploadDocument = async (req, res) => {
             
             if (targetRowIndex !== -1) {
                 let columnLetter = docType === 'Photo' ? 'J' : (docType === 'Resume' ? 'V' : 'AC');
-                await googleSheets.spreadsheets.values.update({
-                    auth, 
-                    spreadsheetId, 
-                    range: `Data!${columnLetter}${targetRowIndex}`,
-                    valueInputOption: "USER_ENTERED", 
-                    resource: { values: [[result.url]] }
-                });
+                await withRetry(() => 
+                    googleSheets.spreadsheets.values.update({
+                        auth, 
+                        spreadsheetId, 
+                        range: `Data!${columnLetter}${targetRowIndex}`,
+                        valueInputOption: "USER_ENTERED", 
+                        resource: { values: [[result.url]] }
+                    })
+                );
             }
         } catch (sheetUpdateErr) {
             console.log("Failed to write document URL to sheet, but upload succeeded.", sheetUpdateErr);
@@ -475,7 +500,7 @@ const updatePassword = async (req, res) => {
         const { googleSheets, auth } = await connectSheet();
         const spreadsheetId = process.env.SPREADSHEET_ID;
 
-        const getRows = await googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: "Data!A:AD" });
+        const getRows = await withRetry(() => googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: "Data!A:AD" }));
         const rows = getRows.data.values || [];
         let targetRowIndex = -1;
         
@@ -490,7 +515,9 @@ const updatePassword = async (req, res) => {
         }
         if (targetRowIndex === -1) return res.status(404).json({ success: false, message: "User not found." });
 
-        await googleSheets.spreadsheets.values.update({ auth, spreadsheetId, range: `Data!E${targetRowIndex}`, valueInputOption: "USER_ENTERED", resource: { values: [[newPassword]] } });
+        await withRetry(() => 
+            googleSheets.spreadsheets.values.update({ auth, spreadsheetId, range: `Data!E${targetRowIndex}`, valueInputOption: "USER_ENTERED", resource: { values: [[newPassword]] } })
+        );
         res.status(200).json({ success: true, message: "Password updated successfully!" });
     } catch (error) { res.status(500).json({ success: false, message: "Failed to update password." }); }
 };
@@ -517,13 +544,15 @@ const submitIssue = async (req, res) => {
             ""                          // K: Remarks
         ];
 
-        await googleSheets.spreadsheets.values.append({
-            auth, 
-            spreadsheetId, 
-            range: "Issues!A:K", 
-            valueInputOption: "USER_ENTERED",
-            resource: { values: [newTicket] },
-        });
+        await withRetry(() => 
+            googleSheets.spreadsheets.values.append({
+                auth, 
+                spreadsheetId, 
+                range: "Issues!A:K", 
+                valueInputOption: "USER_ENTERED",
+                resource: { values: [newTicket] },
+            })
+        );
         
         res.status(200).json({ success: true, message: "Issue reported successfully!" });
     } catch (error) { 
@@ -541,7 +570,7 @@ const submitDriveResponse = async (req, res) => {
         const targetDriveId = driveId || title || "N/A";
 
         try {
-            const checkSheet = await googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: "Drive_Registration!A:D" });
+            const checkSheet = await withRetry(() => googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: "Drive_Registration!A:D" }));
             const rows = checkSheet.data.values || [];
             for (let i = 1; i < rows.length; i++) {
                 if (rows[i][0] === targetDriveId && rows[i][3] && rows[i][3].toLowerCase() === email.toLowerCase()) {
@@ -552,26 +581,28 @@ const submitDriveResponse = async (req, res) => {
 
         const timestamp = new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" });
 
-        await googleSheets.spreadsheets.values.append({
-            auth, 
-            spreadsheetId, 
-            range: "Drive_Registration!A:J", 
-            valueInputOption: "USER_ENTERED",
-            resource: { 
-                values: [[
-                    targetDriveId, 
-                    name || "N/A", 
-                    phone || "N/A", 
-                    email || "N/A", 
-                    course || "N/A", 
-                    branch || "N/A", 
-                    resume || "N/A", 
-                    qualification || "N/A", 
-                    status || "N/A",
-                    timestamp
-                ]] 
-            },
-        });
+        await withRetry(() => 
+            googleSheets.spreadsheets.values.append({
+                auth, 
+                spreadsheetId, 
+                range: "Drive_Registration!A:J", 
+                valueInputOption: "USER_ENTERED",
+                resource: { 
+                    values: [[
+                        targetDriveId, 
+                        name || "N/A", 
+                        phone || "N/A", 
+                        email || "N/A", 
+                        course || "N/A", 
+                        branch || "N/A", 
+                        resume || "N/A", 
+                        qualification || "N/A", 
+                        status || "N/A",
+                        timestamp
+                    ]] 
+                },
+            })
+        );
 
         res.status(200).json({ success: true, message: `Status updated to: ${status}` });
     } catch (error) {

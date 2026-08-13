@@ -1,6 +1,23 @@
 const connectSheet = require('../config/db');
 const jwt = require('jsonwebtoken');
 
+// Exponential Backoff Retry Function to handle Google Sheets API limits
+const withRetry = async (fn, retries = 5, delay = 1000) => {
+    for (let i = 0; i < retries; i++) {
+        try {
+            return await fn();
+        } catch (error) {
+            // If it's the last retry, or the error IS NOT a rate limit, throw it immediately
+            if (i === retries - 1 || (error.code !== 429 && !error.message?.includes('quota') && !error.message?.includes('rate limit'))) {
+                throw error;
+            }
+            console.log(`Google API Rate Limit hit. Retrying in ${delay}ms... (Attempt ${i + 1} of ${retries})`);
+            await new Promise(res => setTimeout(res, delay));
+            delay *= 2; // Double the wait time on each failure (1s, 2s, 4s, 8s)
+        }
+    }
+};
+
 function getVal(row, headers, possibleNames, fallbackIndex = -1, defaultValue = "N/A") {
     if (headers && headers.length > 0) {
         for (let name of possibleNames) {
@@ -24,7 +41,11 @@ const loginUser = async (req, res) => {
         const { googleSheets, auth } = await connectSheet();
         const spreadsheetId = process.env.SPREADSHEET_ID;
 
-        const getRows = await googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: 'Data!A:AD' });
+        // WRAPPED WITH RETRY: Fetching user data for login
+        const getRows = await withRetry(() => 
+            googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: 'Data!A:AD' })
+        );
+        
         const rows = getRows.data.values || [];
         let userObj = null;
 
@@ -92,7 +113,11 @@ const registerUser = async (req, res) => {
         const { googleSheets, auth } = await connectSheet();
         const spreadsheetId = process.env.SPREADSHEET_ID;
 
-        const getRows = await googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: "Data!A:AD" });
+        // WRAPPED WITH RETRY: Checking if user already exists
+        const getRows = await withRetry(() => 
+            googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: "Data!A:AD" })
+        );
+        
         const rows = getRows.data.values || [];
         const headers = rows[0] || [];
         
@@ -157,13 +182,16 @@ const registerUser = async (req, res) => {
             "Yes"                                          
         ];
 
-        await googleSheets.spreadsheets.values.append({
-            auth,
-            spreadsheetId,
-            range: "Data!A:AD",
-            valueInputOption: "USER_ENTERED",
-            resource: { values: [newRow] }
-        });
+        // WRAPPED WITH RETRY: Writing new user data to the sheet
+        await withRetry(() => 
+            googleSheets.spreadsheets.values.append({
+                auth,
+                spreadsheetId,
+                range: "Data!A:AD",
+                valueInputOption: "USER_ENTERED",
+                resource: { values: [newRow] }
+            })
+        );
 
         const token = jwt.sign(
             { email: formData.email, rollNo: formData.rollNo || "N/A", branch: formData.branch || "Bangalore" },
