@@ -216,4 +216,46 @@ const registerUser = async (req, res) => {
     }
 };
 
-module.exports = { loginUser, registerUser };
+// ... [Keep your existing loginUser and registerUser functions] ...
+
+// --- NEW FUNCTION TO FETCH COURSES ---
+const getCourses = async (req, res) => {
+    try {
+        const { googleSheets, auth } = await connectSheet();
+        const spreadsheetId = process.env.SPREADSHEET_ID;
+
+        // Fetch data from the new "Courses" subsheet
+        const getRows = await withRetry(() => 
+            googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: "Courses!A:B" })
+        );
+        
+        const rows = getRows.data.values || [];
+        let groupedCourses = [];
+        let currentCategory = "General";
+
+        for (let i = 0; i < rows.length; i++) {
+            const colA = rows[i][0] ? rows[i][0].trim() : "";
+            const colB = rows[i][1] ? rows[i][1].trim() : "";
+
+            if (colA) {
+                // If Col A has text, it's a new Category (strip numbers like "1. ")
+                currentCategory = colA.replace(/^\d+\.\s*/, ''); 
+                groupedCourses.push({ category: currentCategory, courses: [] });
+            } else if (colB && groupedCourses.length > 0) {
+                // If Col B has text, add it as a course under the current Category
+                groupedCourses[groupedCourses.length - 1].courses.push(colB);
+            } else if (colB && groupedCourses.length === 0) {
+                // Fallback if Col B has text but no category was set yet
+                groupedCourses.push({ category: currentCategory, courses: [colB] });
+            }
+        }
+
+        return res.status(200).json({ success: true, groupedCourses });
+    } catch (error) {
+        console.error("Fetch Courses Error:", error);
+        return res.status(500).json({ success: false, message: "Server error fetching courses." });
+    }
+};
+
+// Update the exports to include the new function
+module.exports = { loginUser, registerUser, getCourses };
