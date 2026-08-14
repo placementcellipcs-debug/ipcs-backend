@@ -23,3 +23,10 @@ module.exports = router;
 
 router.post('/study-materials', getStudyMaterialsList);
 router.post('/study-materials/stream', streamMaterialPdf);
+
+const { getAptitudeTest, submitAptitudeTest, getTestHistory } = require('../controllers/aptitudeController');
+
+// Aptitude Assessment Endpoints
+router.post('/aptitude/start', getAptitudeTest);
+router.post('/aptitude/submit', submitAptitudeTest);
+router.post('/aptitude/history', getTestHistory);
