@@ -148,22 +148,23 @@ const getDashboardData = async (req, res) => {
 
         let events = [];
         try {
-            const eventSheet = await withRetry(() => googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: "Event!A:I" }));
+            const eventSheet = await withRetry(() => googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: "Event!A:K" }));
             const evData = eventSheet.data.values || [];
             for (let i = 1; i < evData.length; i++) {
-                let evBranch = (evData[i][1] || "all").toLowerCase();
+                // Updated to read Column C (index 2) for Branch instead of Column B
+                let evBranch = (evData[i][2] || "all").toLowerCase();
                 if (evBranch.includes("all") || evBranch.includes((branch || "Bangalore").toLowerCase())) {
                     events.push({ 
-                        date: evData[i][0] || "TBA", 
-                        branch: evData[i][1] || "All",
-                        type: evData[i][2] || "GENERAL",
-                        title: evData[i][3] || "Event", 
-                        description: evData[i][4] || "", 
-                        time: evData[i][5] || "", 
-                        location: evData[i][6] || "",
-                        posterLink: evData[i][7] || "",
-                        id: evData[i][8] || `DRK-${1000 + i}`,
-                        driveId: evData[i][8] || `DRK-${1000 + i}`
+                        date: evData[i][0] || "TBA",               // Col A
+                        branch: evData[i][2] || "All",             // Col C
+                        type: evData[i][3] || "GENERAL",           // Col D (Event)
+                        title: evData[i][4] || "Event",            // Col E (Title)
+                        description: evData[i][5] || "",           // Col F (Description)
+                        time: evData[i][6] || "",                  // Col G (Time)
+                        location: evData[i][7] || "",              // Col H (Happening in)
+                        posterLink: evData[i][8] || "",            // Col I (Poster Link)
+                        id: evData[i][9] || `DRK-${1000 + i}`,     // Col J (Drive ID)
+                        driveId: evData[i][9] || `DRK-${1000 + i}`
                     });
                 }
             }
