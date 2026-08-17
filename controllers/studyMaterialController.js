@@ -108,10 +108,9 @@ const streamMaterialPdf = async (req, res) => {
         } 
         // --- FORMAT ONEDRIVE / SHAREPOINT LINKS ---
         else if (embedUrl.includes('onedrive.live.com') || embedUrl.includes('sharepoint.com')) {
-            // Force embedview and prepare it for our custom slide controller
+            // Reverted to simple, standard embedview (No custom slide logic)
             if (embedUrl.includes('?')) {
                 embedUrl = embedUrl.replace(/action=\w+/, 'action=embedview');
-                embedUrl = embedUrl.replace(/&wdStartOn=\d+/, ''); // Strip old slide numbers
             } else {
                 embedUrl += '?action=embedview';
             }
