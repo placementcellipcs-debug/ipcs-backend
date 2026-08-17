@@ -199,6 +199,7 @@ const getSpecificTest = async (req, res) => {
         
         const rows = getRows.data.values || [];
         let questions = [];
+        const parsedTestNum = parseInt(testNum) || 1;
 
         for (let i = 1; i < rows.length; i++) {
             const status = (rows[i][9] || "active").toLowerCase().trim();
@@ -206,22 +207,22 @@ const getSpecificTest = async (req, res) => {
 
             if (type === 'talentino') {
                 const rowTestNum = parseInt(rows[i][1]) || 1;
-                if (rowTestNum === testNum) {
+                if (rowTestNum === parsedTestNum) {
                     questions.push({ 
-                        id: rows[i][0] || `Q-${i}`, category: `Test ${testNum}`, question: rows[i][2], 
+                        id: rows[i][0] || `Q-${i}`, category: `Test ${parsedTestNum}`, question: rows[i][2], 
                         options: { A: rows[i][3], B: rows[i][4], C: rows[i][5], D: rows[i][6] },
                         answer: (rows[i][7] || "A").toString().trim(),
-                        explanation: (rows[i][8] || "").toString().trim() // ADDED EXPLANATION
+                        explanation: (rows[i][8] || "").toString().trim() 
                     });
                 }
             } else if (type === 'technical') {
                 const rowCourse = (rows[i][1] || "").toLowerCase().trim();
-                if (rowCourse === course.toLowerCase().trim()) {
+                if (rowCourse === (course || "").toLowerCase().trim()) {
                     questions.push({ 
                         id: rows[i][0] || `Q-${i}`, category: course, question: rows[i][2], 
                         options: { A: rows[i][3], B: rows[i][4], C: rows[i][5], D: rows[i][6] },
                         answer: (rows[i][7] || "A").toString().trim(),
-                        explanation: (rows[i][8] || "").toString().trim() // ADDED EXPLANATION
+                        explanation: (rows[i][8] || "").toString().trim() 
                     });
                 }
             }
@@ -230,7 +231,12 @@ const getSpecificTest = async (req, res) => {
         // Shuffle questions
         questions = questions.sort(() => Math.random() - 0.5);
 
-        return res.status(200).json({ success: true, levels: { 1: questions }, timeLimits: { 1: type === 'technical' ? 45 : 20 } });
+        // FIX: Dynamically assign the correct test number key instead of hardcoding "1"
+        return res.status(200).json({ 
+            success: true, 
+            levels: { [parsedTestNum]: questions }, 
+            timeLimits: { [parsedTestNum]: type === 'technical' ? 45 : 20 } 
+        });
     } catch (error) {
         return res.status(500).json({ success: false, message: "Failed to load exam engine." });
     }
