@@ -199,7 +199,7 @@ const getSpecificTest = async (req, res) => {
         
         const rows = getRows.data.values || [];
         let questions = [];
-        const parsedTestNum = parseInt(testNum) || 1;
+        const parsedTestNum = parseInt(testNum) || 1; // Converts testNum to integer
 
         for (let i = 1; i < rows.length; i++) {
             const status = (rows[i][9] || "active").toLowerCase().trim();
@@ -207,6 +207,7 @@ const getSpecificTest = async (req, res) => {
 
             if (type === 'talentino') {
                 const rowTestNum = parseInt(rows[i][1]) || 1;
+                // Matches the exact Test Number requested
                 if (rowTestNum === parsedTestNum) {
                     questions.push({ 
                         id: rows[i][0] || `Q-${i}`, category: `Test ${parsedTestNum}`, question: rows[i][2], 
