@@ -17,10 +17,7 @@ const getAptitudeTest = async (req, res) => {
         const { googleSheets, auth } = await connectSheet();
         const spreadsheetId = process.env.SPREADSHEET_ID;
 
-        const getRows = await withRetry(() =>
-            googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: "Aptitude_Questions!A:K" })
-        );
-
+        const getRows = await withRetry(() => googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: "Aptitude_Questions!A:K" }));
         const rows = getRows.data.values || [];
         let levels = { 1: [], 2: [], 3: [] };
 
@@ -40,11 +37,12 @@ const getAptitudeTest = async (req, res) => {
                     B: rows[i][4] || "",
                     C: rows[i][5] || "",
                     D: rows[i][6] || ""
-                }
+                },
+                answer: (rows[i][7] || "A").toString().trim() // Pulls Correct Answer from Col H
             });
         }
 
-        // Shuffle questions within each level to prevent cheating
+        // Shuffle questions within each level
         for (let l = 1; l <= 3; l++) {
             levels[l] = levels[l].sort(() => Math.random() - 0.5);
         }
@@ -52,7 +50,7 @@ const getAptitudeTest = async (req, res) => {
         return res.status(200).json({ 
             success: true, 
             levels, 
-            timeLimits: { 1: 10, 2: 15, 3: 20 } // Minutes per level
+            timeLimits: { 1: 10, 2: 15, 3: 20 } 
         });
     } catch (error) {
         return res.status(500).json({ success: false, message: "Failed to load aptitude engine." });
@@ -66,7 +64,7 @@ const submitAptitudeTest = async (req, res) => {
         const { googleSheets, auth } = await connectSheet();
         const spreadsheetId = process.env.SPREADSHEET_ID;
 
-        const percentage = totalQuestions > 0 ? Math.round((totalScore / totalQuestions) * 100) : 0;
+        const percentage = totalQuestions > 0 ? Math.round((totalScore / (totalQuestions * 2)) * 100) : 0; // Aptitude is 2 pts per question
         const minutes = Math.floor((totalTimeSeconds || 0) / 60);
         const seconds = (totalTimeSeconds || 0) % 60;
         const timeTakenFormatted = `${minutes}m ${seconds}s`;
@@ -74,25 +72,13 @@ const submitAptitudeTest = async (req, res) => {
         const timestamp = new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" });
         
         const newResultRow = [
-            timestamp,
-            rollNo || "N/A",
-            name || "Student",
-            email || "N/A",
-            branch || "Bangalore",
-            String(totalScore),
-            String(totalQuestions),
-            `${percentage}%`,
-            timeTakenFormatted,
-            `Reached Level ${finalLevel}`
+            timestamp, rollNo || "N/A", name || "Student", email || "N/A", branch || "Bangalore",
+            String(totalScore), String(totalQuestions), `${percentage}%`, timeTakenFormatted, `Reached Level ${finalLevel}`
         ];
 
         await withRetry(() =>
             googleSheets.spreadsheets.values.append({
-                auth,
-                spreadsheetId,
-                range: "Aptitude_Results!A:J",
-                valueInputOption: "USER_ENTERED",
-                resource: { values: [newResultRow] }
+                auth, spreadsheetId, range: "Aptitude_Results!A:J", valueInputOption: "USER_ENTERED", resource: { values: [newResultRow] }
             })
         );
 
@@ -108,24 +94,17 @@ const getLeaderboard = async (req, res) => {
         const { googleSheets, auth } = await connectSheet();
         const spreadsheetId = process.env.SPREADSHEET_ID;
 
-        const getRows = await withRetry(() =>
-            googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: "Aptitude_Results!A:J" })
-        );
-
+        const getRows = await withRetry(() => googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: "Aptitude_Results!A:J" }));
         const rows = getRows.data.values || [];
         let allScores = [];
 
-        // Skip headers
         for (let i = 1; i < rows.length; i++) {
             const score = parseInt(rows[i][5]) || 0;
             const timeStr = rows[i][8] || "0m 0s";
             
-            // Convert time string "Xm Ys" to total seconds for tie-breaking
             const timeParts = timeStr.match(/(\d+)m\s*(\d+)s/);
             let timeInSeconds = 9999;
-            if (timeParts) {
-                timeInSeconds = (parseInt(timeParts[1]) * 60) + parseInt(timeParts[2]);
-            }
+            if (timeParts) timeInSeconds = (parseInt(timeParts[1]) * 60) + parseInt(timeParts[2]);
 
             allScores.push({
                 name: rows[i][2] || "Student",
@@ -137,15 +116,12 @@ const getLeaderboard = async (req, res) => {
             });
         }
 
-        // Sort by Highest Score -> Then by Lowest Time Taken
         allScores.sort((a, b) => {
             if (b.score !== a.score) return b.score - a.score;
             return a.timeSeconds - b.timeSeconds;
         });
 
-        // Return Top 10
         const top10 = allScores.slice(0, 10);
-
         return res.status(200).json({ success: true, leaderboard: top10 });
     } catch (error) {
         return res.status(500).json({ success: false, message: "Failed to fetch leaderboard." });
@@ -176,9 +152,13 @@ const getTestHistory = async (req, res) => {
             for (let i = rows.length - 1; i >= 1; i--) {
                 if (rows[i][3] && rows[i][3].toLowerCase() === (email || "").toLowerCase()) {
                     if (type === 'aptitude') {
-                        history.push({ date: rows[i][0], score: rows[i][5], timeTaken: rows[i][8], levelReached: rows[i][9], type: 'aptitude' });
+                        history.push({ 
+                            date: rows[i][0], score: rows[i][5], percentage: rows[i][7], timeTaken: rows[i][8], levelReached: rows[i][9], type: 'aptitude' 
+                        });
                     } else {
-                        history.push({ date: rows[i][0], levelReached: rows[i][5], score: rows[i][6], timeTaken: rows[i][9], type: type });
+                        history.push({ 
+                            date: rows[i][0], levelReached: rows[i][5], score: rows[i][6], percentage: rows[i][8], timeTaken: rows[i][9], type: type 
+                        });
                     }
                 }
             }
@@ -202,11 +182,8 @@ const getSpecificTest = async (req, res) => {
         const spreadsheetId = process.env.SPREADSHEET_ID;
 
         const sheetName = type === 'talentino' ? "Talentino_Questions!A:K" : "Tech_Questions!A:K";
+        const getRows = await withRetry(() => googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: sheetName }));
         
-        const getRows = await withRetry(() =>
-            googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: sheetName })
-        );
-
         const rows = getRows.data.values || [];
         let questions = [];
 
@@ -217,12 +194,20 @@ const getSpecificTest = async (req, res) => {
             if (type === 'talentino') {
                 const rowTestNum = parseInt(rows[i][1]) || 1;
                 if (rowTestNum === testNum) {
-                    questions.push({ id: rows[i][0] || `Q-${i}`, category: `Test ${testNum}`, question: rows[i][2], options: { A: rows[i][3], B: rows[i][4], C: rows[i][5], D: rows[i][6] } });
+                    questions.push({ 
+                        id: rows[i][0] || `Q-${i}`, category: `Test ${testNum}`, question: rows[i][2], 
+                        options: { A: rows[i][3], B: rows[i][4], C: rows[i][5], D: rows[i][6] },
+                        answer: (rows[i][7] || "A").toString().trim() // Pulls Correct Answer from Col H
+                    });
                 }
             } else if (type === 'technical') {
                 const rowCourse = (rows[i][1] || "").toLowerCase().trim();
                 if (rowCourse === course.toLowerCase().trim()) {
-                    questions.push({ id: rows[i][0] || `Q-${i}`, category: course, question: rows[i][2], options: { A: rows[i][3], B: rows[i][4], C: rows[i][5], D: rows[i][6] } });
+                    questions.push({ 
+                        id: rows[i][0] || `Q-${i}`, category: course, question: rows[i][2], 
+                        options: { A: rows[i][3], B: rows[i][4], C: rows[i][5], D: rows[i][6] },
+                        answer: (rows[i][7] || "A").toString().trim() // Pulls Correct Answer from Col H
+                    });
                 }
             }
         }
@@ -243,6 +228,7 @@ const submitSpecificTest = async (req, res) => {
         const { googleSheets, auth } = await connectSheet();
         const spreadsheetId = process.env.SPREADSHEET_ID;
 
+        // 1 point per question for Talentino and Tech
         const percentage = totalQuestions > 0 ? Math.round((totalScore / totalQuestions) * 100) : 0;
         const timeTakenFormatted = `${Math.floor((totalTimeSeconds || 0) / 60)}m ${(totalTimeSeconds || 0) % 60}s`;
         const timestamp = new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" });
