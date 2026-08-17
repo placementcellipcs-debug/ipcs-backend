@@ -107,17 +107,15 @@ const streamMaterialPdf = async (req, res) => {
                 embedUrl = `https://docs.google.com/presentation/d/${fileIdMatch[1]}/embed?start=false&loop=false`;
             }
         } 
-        // --- FORMAT ONEDRIVE / SHAREPOINT LINKS ---
-        else if (embedUrl.includes('onedrive.live.com') || embedUrl.includes('sharepoint.com')) {
-            // Forces Microsoft's native PowerPoint embed player
-            if (embedUrl.includes('?')) {
-                if (!embedUrl.includes('action=embedview')) {
-                    embedUrl += '&action=embedview&wdStartOn=1'; 
-                }
-            } else {
-                embedUrl += '?action=embedview&wdStartOn=1';
-            }
-        }
+        // --- FORMAT ONEDRIVE / SHAREPOINT LINKS FOR CLEAN READING VIEW ---
+else if (embedUrl.includes('onedrive.live.com') || embedUrl.includes('sharepoint.com')) {
+    // Forces Microsoft's clean Reading View with built-in navigation bar
+    if (embedUrl.includes('?')) {
+        embedUrl = embedUrl.replace(/action=\w+/, 'action=view');
+    } else {
+        embedUrl += '?action=view';
+    }
+}
 
         return res.status(200).json({ success: true, embedUrl });
 
