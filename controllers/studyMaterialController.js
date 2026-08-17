@@ -101,25 +101,24 @@ const streamMaterialPdf = async (req, res) => {
 
         // --- FORMAT GOOGLE DRIVE LINKS ---
         if (embedUrl.includes('drive.google.com')) {
-            if (embedUrl.includes('/view')) {
-                embedUrl = embedUrl.replace(/\/view.*/, '/preview'); // Forces preview mode (no toolbars)
-            } else if (!embedUrl.includes('/preview')) {
-                const match = embedUrl.match(/\/d\/([a-zA-Z0-9_-]+)/);
-                if (match) {
-                    embedUrl = `https://drive.google.com/file/d/${match[1]}/preview`;
-                }
+            const fileIdMatch = embedUrl.match(/(?:id=|\/d\/)([\w-]+)/);
+            if (fileIdMatch && fileIdMatch[1]) {
+                // Forces Google's native presentation player
+                embedUrl = `https://docs.google.com/presentation/d/${fileIdMatch[1]}/embed?start=false&loop=false`;
             }
         } 
         // --- FORMAT ONEDRIVE / SHAREPOINT LINKS ---
         else if (embedUrl.includes('onedrive.live.com') || embedUrl.includes('sharepoint.com')) {
+            // Forces Microsoft's native PowerPoint embed player
             if (embedUrl.includes('?')) {
-                embedUrl += '&action=embedview&wdStartOn=1'; // Forces OneDrive embed view
+                if (!embedUrl.includes('action=embedview')) {
+                    embedUrl += '&action=embedview&wdStartOn=1'; 
+                }
             } else {
                 embedUrl += '?action=embedview&wdStartOn=1';
             }
         }
 
-        // Send the formatted embed URL back to the frontend
         return res.status(200).json({ success: true, embedUrl });
 
     } catch (error) {
