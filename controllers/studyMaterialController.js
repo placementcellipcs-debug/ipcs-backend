@@ -100,21 +100,20 @@ const streamMaterialPdf = async (req, res) => {
         let embedUrl = oneDriveLink;
 
         // --- FORMAT GOOGLE DRIVE LINKS ---
-        if (embedUrl.includes('drive.google.com')) {
+        if (embedUrl.includes('drive.google.com') || embedUrl.includes('docs.google.com')) {
             const fileIdMatch = embedUrl.match(/(?:id=|\/d\/)([\w-]+)/);
             if (fileIdMatch && fileIdMatch[1]) {
-                // Forces Google's native presentation player
                 embedUrl = `https://docs.google.com/presentation/d/${fileIdMatch[1]}/embed?start=false&loop=false`;
             }
         } 
-       // --- FORMAT ONEDRIVE / SHAREPOINT LINKS ---
+        // --- FORMAT ONEDRIVE / SHAREPOINT LINKS ---
         else if (embedUrl.includes('onedrive.live.com') || embedUrl.includes('sharepoint.com')) {
-            // MUST use embedview for iframes to prevent "refused to connect" error
+            // Force embedview and prepare it for our custom slide controller
             if (embedUrl.includes('?')) {
                 embedUrl = embedUrl.replace(/action=\w+/, 'action=embedview');
-                if (!embedUrl.includes('wdStartOn')) embedUrl += '&wdStartOn=1';
+                embedUrl = embedUrl.replace(/&wdStartOn=\d+/, ''); // Strip old slide numbers
             } else {
-                embedUrl += '?action=embedview&wdStartOn=1';
+                embedUrl += '?action=embedview';
             }
         }
 
