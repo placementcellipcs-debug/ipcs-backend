@@ -57,12 +57,17 @@ const getStudyMaterialsList = async (req, res) => {
             const rowStatus = (matData[i][6] || "active").toLowerCase();
             if (rowStatus.includes("inactive") || rowStatus === "false") continue;
 
-            const rowCourse = (matData[i][1] || "all").toLowerCase();
+            const rowCourse = (matData[i][1] || "all").toLowerCase().trim();
             let isMatch = false;
 
-            if (rowCourse.includes("all") || rowCourse === "") isMatch = true;
-            else if (cleanStudentCourse && rowCourse.includes(cleanStudentCourse)) isMatch = true;
-            else if (cleanStudentCourse) isMatch = cleanStudentCourse.split(" ").some(w => w.length > 3 && rowCourse.includes(w));
+            // NEW STRICT FILTERING LOGIC
+            if (rowCourse.includes("all") || rowCourse === "") {
+                isMatch = true;
+            } else if (cleanStudentCourse === rowCourse) {
+                isMatch = true;
+            } else if (cleanStudentCourse.includes(rowCourse) || rowCourse.includes(cleanStudentCourse)) {
+                isMatch = true;
+            }
 
             if (isMatch) {
                 materials.push({

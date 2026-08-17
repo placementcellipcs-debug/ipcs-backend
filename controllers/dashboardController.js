@@ -3,7 +3,7 @@ const axios = require('axios');
 const NodeCache = require('node-cache');
 
 // Initialize NodeCache: Default Time-To-Live (TTL) is 180 seconds (3 minutes)
-const cache = new NodeCache({ stdTTL: 180, checkperiod: 120 });
+const cache = new NodeCache({ stdTTL: 5, checkperiod: 120 });
 
 // Exponential Backoff Retry Function to handle Google Sheets API limits
 const withRetry = async (fn, retries = 5, delay = 1000) => {
