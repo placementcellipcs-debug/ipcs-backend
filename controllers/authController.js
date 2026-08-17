@@ -82,7 +82,8 @@ const loginUser = async (req, res) => {
                     age: row[26] || "N/A",                     
                     gender: row[27] || "N/A",                  
                     certificate: row[28] || "N/A",             
-                    vacancyOpen: row[29] || "No"               
+                    vacancyOpen: row[29] || "No" ,
+                    techExamAccess: row[32] || "No"              
                 };
                 break; 
             }

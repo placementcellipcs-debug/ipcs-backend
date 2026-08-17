@@ -446,7 +446,8 @@ const updateProfile = async (req, res) => {
             age: updatedRow[26] || "N/A",
             gender: updatedRow[27] || "N/A",
             certificate: updatedRow[28] || "N/A",
-            vacancyOpen: updatedRow[29] || "No"
+            vacancyOpen: updatedRow[29] || "No" ,
+            techExamAccess: userDataRows[i][32] || "No"
         };
 
         // CLEAR RAM CACHE
