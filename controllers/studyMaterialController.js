@@ -91,13 +91,13 @@ const getStudyMaterialsList = async (req, res) => {
 // 2. Format Link for Secure Iframe Embedding
 const streamMaterialPdf = async (req, res) => {
     try {
-        const { oneDriveLink } = req.body;
+        let { oneDriveLink } = req.body;
         
         if (!oneDriveLink || !oneDriveLink.startsWith('http')) {
             return res.status(400).json({ success: false, message: "Invalid Link Format in Database." });
         }
 
-        let embedUrl = oneDriveLink;
+        let embedUrl = oneDriveLink.trim();
 
         // --- FORMAT GOOGLE DRIVE LINKS ---
         if (embedUrl.includes('drive.google.com') || embedUrl.includes('docs.google.com')) {
@@ -106,11 +106,13 @@ const streamMaterialPdf = async (req, res) => {
                 embedUrl = `https://docs.google.com/presentation/d/${fileIdMatch[1]}/embed?start=false&loop=false`;
             }
         } 
-        // --- FORMAT ONEDRIVE / SHAREPOINT LINKS ---
-        else if (embedUrl.includes('onedrive.live.com') || embedUrl.includes('sharepoint.com')) {
-            // Reverted to simple, standard embedview (No custom slide logic)
+        // --- FORMAT SHAREPOINT / ONEDRIVE LINKS ---
+        else if (embedUrl.includes('sharepoint.com') || embedUrl.includes('onedrive.live.com')) {
+            // Automatically appends Microsoft's embed command to your sheet links
             if (embedUrl.includes('?')) {
-                embedUrl = embedUrl.replace(/action=\w+/, 'action=embedview');
+                if (!embedUrl.includes('action=embedview')) {
+                    embedUrl += '&action=embedview';
+                }
             } else {
                 embedUrl += '?action=embedview';
             }
