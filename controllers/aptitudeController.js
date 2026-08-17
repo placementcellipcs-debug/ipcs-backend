@@ -25,8 +25,11 @@ const getAptitudeTest = async (req, res) => {
             const status = (rows[i][9] || "active").toLowerCase().trim();
             if (status.includes("inactive") || status === "false") continue;
 
-            let level = parseInt(rows[i][10]) || 1; // Column K is the Level
-            if (level < 1 || level > 3) level = 1;
+            // FIX: Now correctly reads "Easy", "Medium", "Hard" from the Sheet!
+            let levelStr = (rows[i][10] || "Easy").toString().toLowerCase().trim();
+            let level = 1;
+            if (levelStr === 'medium' || levelStr === '2') level = 2;
+            if (levelStr === 'hard' || levelStr === '3') level = 3;
 
             levels[level].push({
                 id: rows[i][0] || `Q-${i}`,
@@ -38,7 +41,8 @@ const getAptitudeTest = async (req, res) => {
                     C: rows[i][5] || "",
                     D: rows[i][6] || ""
                 },
-                answer: (rows[i][7] || "A").toString().trim() // Pulls Correct Answer from Col H
+                answer: (rows[i][7] || "A").toString().trim(),
+                explanation: (rows[i][8] || "").toString().trim()
             });
         }
 
