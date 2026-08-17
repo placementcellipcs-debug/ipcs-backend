@@ -152,32 +152,41 @@ const getLeaderboard = async (req, res) => {
     }
 };
 
-// 4. Get Student History
+// 4. Get Student History (UPDATED TO FETCH ALL 3 SHEETS)
 const getTestHistory = async (req, res) => {
     try {
         const { email } = req.body;
         const { googleSheets, auth } = await connectSheet();
         const spreadsheetId = process.env.SPREADSHEET_ID;
 
-        const getRows = await withRetry(() =>
-            googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: "Aptitude_Results!A:J" })
-        );
+        const fetchSheet = async (range) => {
+            try {
+                const response = await withRetry(() => googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range }));
+                return response.data.values || [];
+            } catch (e) { return []; }
+        };
 
-        const rows = getRows.data.values || [];
+        const aptRows = await fetchSheet("Aptitude_Results!A:J");
+        const talRows = await fetchSheet("Talentino_Results!A:J");
+        const techRows = await fetchSheet("Tech_Results!A:J");
+
         const history = [];
 
-        for (let i = rows.length - 1; i >= 1; i--) {
-            if (rows[i][3] && rows[i][3].toLowerCase() === (email || "").toLowerCase()) {
-                history.push({
-                    date: rows[i][0],
-                    score: rows[i][5],
-                    total: rows[i][6],
-                    percentage: rows[i][7],
-                    timeTaken: rows[i][8],
-                    levelReached: rows[i][9]
-                });
+        const parseRows = (rows, type) => {
+            for (let i = rows.length - 1; i >= 1; i--) {
+                if (rows[i][3] && rows[i][3].toLowerCase() === (email || "").toLowerCase()) {
+                    if (type === 'aptitude') {
+                        history.push({ date: rows[i][0], score: rows[i][5], timeTaken: rows[i][8], levelReached: rows[i][9], type: 'aptitude' });
+                    } else {
+                        history.push({ date: rows[i][0], levelReached: rows[i][5], score: rows[i][6], timeTaken: rows[i][9], type: type });
+                    }
+                }
             }
-        }
+        };
+
+        parseRows(aptRows, 'aptitude');
+        parseRows(talRows, 'talentino');
+        parseRows(techRows, 'technical');
 
         return res.status(200).json({ success: true, history });
     } catch (error) {
