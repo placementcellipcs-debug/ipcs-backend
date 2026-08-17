@@ -11,7 +11,7 @@ const withRetry = async (fn, retries = 5, delay = 1000) => {
     }
 };
 
-// 1. Fetch & Gamify Questions by Levels
+// 1. Fetch & Gamify Questions by Levels (APTITUDE ONLY)
 const getAptitudeTest = async (req, res) => {
     try {
         const { googleSheets, auth } = await connectSheet();
@@ -57,7 +57,7 @@ const getAptitudeTest = async (req, res) => {
     }
 };
 
-// 2. Submit Final Score
+// 2. Submit Final Score (APTITUDE ONLY)
 const submitAptitudeTest = async (req, res) => {
     try {
         const { email, name, rollNo, branch, totalScore, totalQuestions, finalLevel, totalTimeSeconds } = req.body;
@@ -88,7 +88,7 @@ const submitAptitudeTest = async (req, res) => {
     }
 };
 
-// 3. Generate Leaderboard
+// 3. Generate Leaderboard (APTITUDE ONLY)
 const getLeaderboard = async (req, res) => {
     try {
         const { googleSheets, auth } = await connectSheet();
@@ -128,7 +128,7 @@ const getLeaderboard = async (req, res) => {
     }
 };
 
-// 4. Get Student History (UPDATED TO FETCH ALL 3 SHEETS)
+// 4. Get Student History (FETCHES FROM ALL 3 SEPARATE SHEETS)
 const getTestHistory = async (req, res) => {
     try {
         const { email } = req.body;
@@ -174,7 +174,7 @@ const getTestHistory = async (req, res) => {
     }
 };
 
-// --- NEW: FETCH TALENTINO / TECH EXAM ---
+// --- NEW: FETCH TALENTINO / TECH EXAM (WITH EXPLANATIONS) ---
 const getSpecificTest = async (req, res) => {
     try {
         const { type, course, testNum } = req.body;
@@ -197,7 +197,8 @@ const getSpecificTest = async (req, res) => {
                     questions.push({ 
                         id: rows[i][0] || `Q-${i}`, category: `Test ${testNum}`, question: rows[i][2], 
                         options: { A: rows[i][3], B: rows[i][4], C: rows[i][5], D: rows[i][6] },
-                        answer: (rows[i][7] || "A").toString().trim() // Pulls Correct Answer from Col H
+                        answer: (rows[i][7] || "A").toString().trim(),
+                        explanation: (rows[i][8] || "").toString().trim() // ADDED EXPLANATION
                     });
                 }
             } else if (type === 'technical') {
@@ -206,7 +207,8 @@ const getSpecificTest = async (req, res) => {
                     questions.push({ 
                         id: rows[i][0] || `Q-${i}`, category: course, question: rows[i][2], 
                         options: { A: rows[i][3], B: rows[i][4], C: rows[i][5], D: rows[i][6] },
-                        answer: (rows[i][7] || "A").toString().trim() // Pulls Correct Answer from Col H
+                        answer: (rows[i][7] || "A").toString().trim(),
+                        explanation: (rows[i][8] || "").toString().trim() // ADDED EXPLANATION
                     });
                 }
             }
