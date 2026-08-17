@@ -185,4 +185,72 @@ const getTestHistory = async (req, res) => {
     }
 };
 
-module.exports = { getAptitudeTest, submitAptitudeTest, getTestHistory, getLeaderboard };
+// --- NEW: FETCH TALENTINO / TECH EXAM ---
+const getSpecificTest = async (req, res) => {
+    try {
+        const { type, course, testNum } = req.body;
+        const { googleSheets, auth } = await connectSheet();
+        const spreadsheetId = process.env.SPREADSHEET_ID;
+
+        const sheetName = type === 'talentino' ? "Talentino_Questions!A:K" : "Tech_Questions!A:K";
+        
+        const getRows = await withRetry(() =>
+            googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: sheetName })
+        );
+
+        const rows = getRows.data.values || [];
+        let questions = [];
+
+        for (let i = 1; i < rows.length; i++) {
+            const status = (rows[i][9] || "active").toLowerCase().trim();
+            if (status.includes("inactive") || status === "false") continue;
+
+            if (type === 'talentino') {
+                const rowTestNum = parseInt(rows[i][1]) || 1;
+                if (rowTestNum === testNum) {
+                    questions.push({ id: rows[i][0] || `Q-${i}`, category: `Test ${testNum}`, question: rows[i][2], options: { A: rows[i][3], B: rows[i][4], C: rows[i][5], D: rows[i][6] } });
+                }
+            } else if (type === 'technical') {
+                const rowCourse = (rows[i][1] || "").toLowerCase().trim();
+                if (rowCourse === course.toLowerCase().trim()) {
+                    questions.push({ id: rows[i][0] || `Q-${i}`, category: course, question: rows[i][2], options: { A: rows[i][3], B: rows[i][4], C: rows[i][5], D: rows[i][6] } });
+                }
+            }
+        }
+
+        // Shuffle questions
+        questions = questions.sort(() => Math.random() - 0.5);
+
+        return res.status(200).json({ success: true, levels: { 1: questions }, timeLimits: { 1: type === 'technical' ? 45 : 20 } });
+    } catch (error) {
+        return res.status(500).json({ success: false, message: "Failed to load exam engine." });
+    }
+};
+
+// --- NEW: SUBMIT TALENTINO / TECH EXAM ---
+const submitSpecificTest = async (req, res) => {
+    try {
+        const { type, email, name, rollNo, branch, course, totalScore, totalQuestions, totalTimeSeconds, testNum } = req.body;
+        const { googleSheets, auth } = await connectSheet();
+        const spreadsheetId = process.env.SPREADSHEET_ID;
+
+        const percentage = totalQuestions > 0 ? Math.round((totalScore / totalQuestions) * 100) : 0;
+        const timeTakenFormatted = `${Math.floor((totalTimeSeconds || 0) / 60)}m ${(totalTimeSeconds || 0) % 60}s`;
+        const timestamp = new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" });
+        
+        let sheetName = type === 'talentino' ? "Talentino_Results!A:J" : "Tech_Results!A:J";
+        let specificCol = type === 'talentino' ? `Test ${testNum}` : course;
+
+        const newResultRow = [ timestamp, rollNo || "N/A", name || "Student", email, branch || "N/A", specificCol, String(totalScore), String(totalQuestions), `${percentage}%`, timeTakenFormatted ];
+
+        await withRetry(() =>
+            googleSheets.spreadsheets.values.append({ auth, spreadsheetId, range: sheetName, valueInputOption: "USER_ENTERED", resource: { values: [newResultRow] } })
+        );
+
+        return res.status(200).json({ success: true, message: "Score registered." });
+    } catch (error) {
+        return res.status(500).json({ success: false, message: "Failed to save score." });
+    }
+};
+
+module.exports = { getAptitudeTest, submitAptitudeTest, getTestHistory, getLeaderboard, getSpecificTest, submitSpecificTest };
