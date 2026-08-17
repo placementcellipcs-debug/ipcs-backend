@@ -43,7 +43,7 @@ const loginUser = async (req, res) => {
 
         // WRAPPED WITH RETRY: Fetching user data for login
         const getRows = await withRetry(() => 
-            googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: 'Data!A:AD' })
+            googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: 'Data!A:AG' })
         );
         
         const rows = getRows.data.values || [];
@@ -116,7 +116,7 @@ const registerUser = async (req, res) => {
 
         // WRAPPED WITH RETRY: Checking if user already exists
         const getRows = await withRetry(() => 
-            googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: "Data!A:AD" })
+            googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: "Data!A:AG" })
         );
         
         const rows = getRows.data.values || [];
@@ -188,7 +188,7 @@ const registerUser = async (req, res) => {
             googleSheets.spreadsheets.values.append({
                 auth,
                 spreadsheetId,
-                range: "Data!A:AD",
+                range: "Data!A:AG",
                 valueInputOption: "USER_ENTERED",
                 resource: { values: [newRow] }
             })

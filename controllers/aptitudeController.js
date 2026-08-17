@@ -92,17 +92,19 @@ const submitAptitudeTest = async (req, res) => {
     }
 };
 
-// 3. Generate Leaderboard (APTITUDE ONLY)
+// 3. Generate Leaderboard (AVERAGE OF MODES)
 const getLeaderboard = async (req, res) => {
     try {
         const { googleSheets, auth } = await connectSheet();
         const spreadsheetId = process.env.SPREADSHEET_ID;
-
         const getRows = await withRetry(() => googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: "Aptitude_Results!A:J" }));
         const rows = getRows.data.values || [];
-        let allScores = [];
+        
+        let studentData = {};
 
+        // Skip headers
         for (let i = 1; i < rows.length; i++) {
+            const email = (rows[i][3] || rows[i][2] || `Unknown-${i}`).toLowerCase();
             const score = parseInt(rows[i][5]) || 0;
             const timeStr = rows[i][8] || "0m 0s";
             
@@ -110,23 +112,30 @@ const getLeaderboard = async (req, res) => {
             let timeInSeconds = 9999;
             if (timeParts) timeInSeconds = (parseInt(timeParts[1]) * 60) + parseInt(timeParts[2]);
 
-            allScores.push({
-                name: rows[i][2] || "Student",
-                branch: rows[i][4] || "Unknown",
-                score: score,
-                percentage: rows[i][7] || "0%",
-                levelReached: rows[i][9] || "Level 1",
-                timeSeconds: timeInSeconds
-            });
+            // Group by student to calculate average
+            if (!studentData[email]) {
+                studentData[email] = { name: rows[i][2] || "Student", branch: rows[i][4] || "Unknown", totalScore: 0, totalTimeSeconds: 0, attempts: 0 };
+            }
+            studentData[email].totalScore += score;
+            studentData[email].totalTimeSeconds += timeInSeconds;
+            studentData[email].attempts += 1;
         }
 
-        allScores.sort((a, b) => {
-            if (b.score !== a.score) return b.score - a.score;
-            return a.timeSeconds - b.timeSeconds;
+        // Calculate Averages
+        let allScores = Object.values(studentData).map(student => {
+            return {
+                name: student.name,
+                branch: student.branch,
+                score: Math.round(student.totalScore / student.attempts), // Average Score
+                levelReached: `${student.attempts} Mode(s) Played`,
+                timeSeconds: Math.round(student.totalTimeSeconds / student.attempts) // Average Time
+            };
         });
 
-        const top10 = allScores.slice(0, 10);
-        return res.status(200).json({ success: true, leaderboard: top10 });
+        // Sort by Highest Average Score -> Lowest Average Time
+        allScores.sort((a, b) => b.score !== a.score ? b.score - a.score : a.timeSeconds - b.timeSeconds);
+        
+        return res.status(200).json({ success: true, leaderboard: allScores.slice(0, 10) });
     } catch (error) {
         return res.status(500).json({ success: false, message: "Failed to fetch leaderboard." });
     }

@@ -90,7 +90,7 @@ const getDashboardData = async (req, res) => {
 
         let userInfo = {};
         try {
-            const dataSheet = await withRetry(() => googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: "Data!A:AD" }));
+            const dataSheet = await withRetry(() => googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: "Data!A:AG" }));
             const userDataRows = dataSheet.data.values || [];
             
             for (let i = userDataRows.length - 1; i >= 1; i--) {
