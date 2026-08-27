@@ -16,7 +16,9 @@ const allowedOrigins = [
   'https://placement.ipcsglobal.info',
   'http://placement.ipcsglobal.info',
   'http://localhost:5173',
-  'http://localhost:3000'
+  'http://localhost:5174',
+  'http://localhost:3000',
+  'https://ipcs-frontend-b5wi-five.vercel.app' // ADD YOUR VERCEL URL HERE
 ];
 
 app.use(cors({

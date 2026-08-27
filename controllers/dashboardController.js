@@ -381,7 +381,7 @@ const applyForJob = async (req, res) => {
         const { email, jobId, companyName, name, phone, rollNo, course, branch, qualification, resume } = req.body;
         const { googleSheets, auth } = await connectSheet();
         const spreadsheetId = process.env.SPREADSHEET_ID;
-        const timestamp = new Date().toLocaleString();
+        const timestamp = new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" });
 
         let position = "N/A", placementOfficer = "TPO Auto-Assigned";
         try {
@@ -396,6 +396,7 @@ const applyForJob = async (req, res) => {
             }
         } catch (e) { }
 
+        // 1. Write the record to Opening_Applied
         await withRetry(() => 
             googleSheets.spreadsheets.values.append({
                 auth, spreadsheetId, range: "Opening_Applied!A:N", valueInputOption: "USER_ENTERED",
@@ -403,9 +404,42 @@ const applyForJob = async (req, res) => {
             })
         );
 
+        // 2. NEW: Write the synchronized record to TPO_Log (Columns A through Q)
+        const newTpoLogRow = [
+            timestamp,                 // A: TimeStamp
+            name || "Student",         // B: Student Name
+            phone || "N/A",            // C: Contact
+            email,                     // D: Mail ID
+            rollNo || "N/A",           // E: Roll Number
+            course || "N/A",           // F: Course
+            branch || "Bangalore",     // G: Branch
+            qualification || "N/A",    // H: Qualification
+            resume || "N/A",           // I: Resume
+            jobId,                     // J: Job ID
+            companyName || "N/A",      // K: Company Name
+            placementOfficer,          // L: Placement Officer
+            "Applied",                 // M: Status
+            "",                        // N: Remarks
+            "",                        // O: DATE PLACED
+            "",                        // P: PACKAGE (LPA)
+            ""                         // Q: Offer Letter Status
+        ];
+
+        await withRetry(() => 
+            googleSheets.spreadsheets.values.append({
+                auth, spreadsheetId, range: "TPO_Log!A:Q", valueInputOption: "USER_ENTERED",
+                resource: { values: [newTpoLogRow] },
+            })
+        );
+
+        // CLEAR RAM CACHE
         cache.del(`dashboard_${email.toLowerCase().trim()}_${(branch || 'Bangalore').toLowerCase().trim()}`);
+
         res.status(200).json({ success: true, message: "Applied successfully!" });
-    } catch (error) { res.status(500).json({ success: false, message: "Failed to apply for job." }); }
+    } catch (error) { 
+        console.error("Job Application Error:", error);
+        res.status(500).json({ success: false, message: "Failed to apply for job." }); 
+    }
 };
 
 const updateProfile = async (req, res) => {
@@ -419,7 +453,7 @@ const updateProfile = async (req, res) => {
         let targetRowIndex = -1;
         
         for (let i = rows.length - 1; i >= 1; i--) {
-            const rowEmail = rows[i][3] || "";
+            const rowEmail = getCol(rows[i], 3, "");
             if (rowEmail.toLowerCase() === email.toLowerCase()) { 
                 targetRowIndex = i + 1; 
                 break; 
@@ -428,10 +462,12 @@ const updateProfile = async (req, res) => {
         
         if (targetRowIndex === -1) return res.status(404).json({ success: false, message: "User not found." });
 
+        // FIX: Google Sheets API strictly requires "requestBody" for batch updates, not "resource".
         await withRetry(() => 
             googleSheets.spreadsheets.values.batchUpdate({
-                auth, spreadsheetId,
-                resource: {
+                auth, 
+                spreadsheetId,
+                requestBody: {
                     valueInputOption: "USER_ENTERED",
                     data: [
                         { range: `Data!K${targetRowIndex}:Q${targetRowIndex}`, values: [[homeTown || "N/A", qualification || "N/A", stream || "N/A", fresherStatus || "N/A", linkedin || "N/A", instagram || "N/A", placementReq || "N/A"]] },
@@ -443,26 +479,31 @@ const updateProfile = async (req, res) => {
             })
         );
 
+        // Fetch the updated row to send back the fresh data to frontend
         const updatedSheet = await withRetry(() => googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: `Data!A:AF` }));
         const allRows = updatedSheet.data.values || [];
         const updatedRow = allRows[targetRowIndex - 1];
 
         const completeUserObj = {
-            name: updatedRow[1] || "Student", phone: updatedRow[2] || "N/A", email: updatedRow[3], rollNo: updatedRow[5] || "N/A",
-            joiningDate: updatedRow[6] || "N/A", course: updatedRow[7] || "N/A", branch: updatedRow[8] || "Bangalore",
-            photo: updatedRow[9] || "", homeTown: updatedRow[10] || "N/A", qualification: updatedRow[11] || "N/A",
-            stream: updatedRow[12] || "N/A", fresherStatus: updatedRow[13] || "N/A", linkedin: updatedRow[14] || "N/A",
-            instagram: updatedRow[15] || "N/A", placementReq: updatedRow[16] || "N/A", friend1Name: updatedRow[17] || "N/A",
-            friend1Phone: updatedRow[18] || "N/A", friend2Name: updatedRow[19] || "N/A", friend2Phone: updatedRow[20] || "N/A",
-            resume: updatedRow[21] || "N/A", parentName: updatedRow[22] || "N/A", parentContact: updatedRow[23] || "N/A",
-            studyStatus: updatedRow[24] || "Currently Studying", completedDate: updatedRow[25] || "N/A", age: updatedRow[26] || "N/A",
-            gender: updatedRow[27] || "N/A", certificate: updatedRow[28] || "N/A", vacancyOpen: updatedRow[29] || "No"
+            name: getCol(updatedRow, 1, "Student"), phone: getCol(updatedRow, 2, "N/A"), email: getCol(updatedRow, 3), rollNo: getCol(updatedRow, 5, "N/A"),
+            joiningDate: getCol(updatedRow, 6, "N/A"), course: getCol(updatedRow, 7, "N/A"), branch: getCol(updatedRow, 8, "Bangalore"), photo: getCol(updatedRow, 9, ""),
+            homeTown: getCol(updatedRow, 10, "N/A"), qualification: getCol(updatedRow, 11, "N/A"), stream: getCol(updatedRow, 12, "N/A"), fresherStatus: getCol(updatedRow, 13, "N/A"),
+            linkedin: getCol(updatedRow, 14, "N/A"), instagram: getCol(updatedRow, 15, "N/A"), placementReq: getCol(updatedRow, 16, "N/A"), friend1Name: getCol(updatedRow, 17, "N/A"),
+            friend1Phone: getCol(updatedRow, 18, "N/A"), friend2Name: getCol(updatedRow, 19, "N/A"), friend2Phone: getCol(updatedRow, 20, "N/A"), resume: getCol(updatedRow, 21, "N/A"),
+            parentName: getCol(updatedRow, 22, "N/A"), parentContact: getCol(updatedRow, 23, "N/A"), studyStatus: getCol(updatedRow, 24, "Currently Studying"),
+            completedDate: getCol(updatedRow, 25, "N/A"), age: getCol(updatedRow, 26, "N/A"), gender: getCol(updatedRow, 27, "N/A"), certificate: getCol(updatedRow, 28, "N/A"),
+            vacancyOpen: getCol(updatedRow, 29, "Yes"), studyMaterialAccess: getCol(updatedRow, 30, "Yes"), placementStatus: getCol(updatedRow, 31, "Pending"), 
+            techExamAccess: "Yes" // Manually inject access to the technical exam without needing an extra sheet column
         };
 
+        // Clear RAM cache so it updates instantly
         cache.del(`dashboard_${email.toLowerCase().trim()}_${(branch || 'Bangalore').toLowerCase().trim()}`);
 
         res.status(200).json({ success: true, message: "Profile updated successfully!", user: completeUserObj });
-    } catch (error) { res.status(500).json({ success: false, message: "Failed to update profile." }); }
+    } catch (error) { 
+        console.error("Profile Update Error Details:", error);
+        res.status(500).json({ success: false, message: "Failed to update profile." }); 
+    }
 };
 
 const uploadDocument = async (req, res) => {
