@@ -57,6 +57,34 @@ const BRANCH_LOCATIONS = {
   "Riyadh (Saudi Arabia)": { lat: 24.7136, lng: 46.6753 }
 };
 
+// --- NEW HELPER: Maps Subcourses to Main Courses from the Courses Sheet ---
+const buildCourseMap = async (googleSheets, auth, spreadsheetId) => {
+    try {
+        const getRows = await withRetry(() => googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: "Courses!A:B" }));
+        const rows = getRows.data.values || [];
+        let courseMap = {};
+        let currentMainCourse = "";
+
+        for (let i = 0; i < rows.length; i++) {
+            const colA = rows[i][0] ? rows[i][0].toString().trim() : "";
+            const colB = rows[i][1] ? rows[i][1].toString().trim() : "";
+
+            if (colA !== "") {
+                // Remove numbers like "1. " from the main course name
+                currentMainCourse = colA.replace(/^\d+\.\s*/, '').trim().toLowerCase();
+            }
+
+            if (colB !== "" && currentMainCourse !== "") {
+                courseMap[colB.toLowerCase()] = currentMainCourse;
+            }
+        }
+        return courseMap;
+    } catch (e) {
+        console.error("Error building course map:", e);
+        return {};
+    }
+};
+
 function isSameDay(dateStr, now) {
     if (!dateStr) return false;
     const parsedDate = new Date(dateStr.toString().replace(/,/g, '').replace(/\s+/g, ' ').trim());
@@ -74,12 +102,14 @@ function calculateDistanceInMeters(lat1, lon1, lat2, lon2) {
     return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
 }
 
+// Safe helper for reading Google Sheet row indexes
+const getCol = (row, idx, fallback = "") => (row && row[idx] !== undefined && row[idx] !== null) ? row[idx].toString().trim() : fallback;
+
 const getDashboardData = async (req, res) => {
     try {
         const { email, branch } = req.body;
         const cacheKey = `dashboard_${email.toLowerCase().trim()}_${(branch || 'Bangalore').toLowerCase().trim()}`;
 
-        // 1. CHECK IF DASHBOARD DATA IS IN RAM CACHE
         const cachedDashboard = cache.get(cacheKey);
         if (cachedDashboard) {
             return res.status(200).json(cachedDashboard);
@@ -88,9 +118,13 @@ const getDashboardData = async (req, res) => {
         const { googleSheets, auth } = await connectSheet();
         const spreadsheetId = process.env.SPREADSHEET_ID;
 
+        // FETCH COURSE MAPPING DICTIONARY
+        const courseMap = await buildCourseMap(googleSheets, auth, spreadsheetId);
+
         let userInfo = {};
         try {
-            const dataSheet = await withRetry(() => googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: "Data!A:AG" }));
+            // STRICTLY A:AF for 32 columns
+            const dataSheet = await withRetry(() => googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: "Data!A:AF" }));
             const userDataRows = dataSheet.data.values || [];
             
             for (let i = userDataRows.length - 1; i >= 1; i--) {
@@ -151,19 +185,18 @@ const getDashboardData = async (req, res) => {
             const eventSheet = await withRetry(() => googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: "Event!A:K" }));
             const evData = eventSheet.data.values || [];
             for (let i = 1; i < evData.length; i++) {
-                // Updated to read Column C (index 2) for Branch instead of Column B
                 let evBranch = (evData[i][2] || "all").toLowerCase();
                 if (evBranch.includes("all") || evBranch.includes((branch || "Bangalore").toLowerCase())) {
                     events.push({ 
-                        date: evData[i][0] || "TBA",               // Col A
-                        branch: evData[i][2] || "All",             // Col C
-                        type: evData[i][3] || "GENERAL",           // Col D (Event)
-                        title: evData[i][4] || "Event",            // Col E (Title)
-                        description: evData[i][5] || "",           // Col F (Description)
-                        time: evData[i][6] || "",                  // Col G (Time)
-                        location: evData[i][7] || "",              // Col H (Happening in)
-                        posterLink: evData[i][8] || "",            // Col I (Poster Link)
-                        id: evData[i][9] || `DRK-${1000 + i}`,     // Col J (Drive ID)
+                        date: evData[i][0] || "TBA", 
+                        branch: evData[i][2] || "All", 
+                        type: evData[i][3] || "GENERAL", 
+                        title: evData[i][4] || "Event", 
+                        description: evData[i][5] || "", 
+                        time: evData[i][6] || "", 
+                        location: evData[i][7] || "", 
+                        posterLink: evData[i][8] || "", 
+                        id: evData[i][9] || `DRK-${1000 + i}`, 
                         driveId: evData[i][9] || `DRK-${1000 + i}`
                     });
                 }
@@ -212,9 +245,10 @@ const getDashboardData = async (req, res) => {
         try {
             const nlSheet = await withRetry(() => googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: "NewsLetter!A:U" }));
             const nlData = nlSheet.data.values || [];
-            const cleanStudentCourse = (userInfo.course || "").trim().toLowerCase();
-            const itCoursesList = ["python and data science", "artificial intelligence", "python full stack", "java full stack", "mern stack", "cyber security"];
-            const isStudentIT = itCoursesList.includes(cleanStudentCourse);
+            
+            // MAP THE STUDENT'S SUBCOURSE TO THE MAIN COURSE
+            const cleanStudentSubcourse = (userInfo.course || "").trim().toLowerCase();
+            const studentMainCourse = courseMap[cleanStudentSubcourse] || cleanStudentSubcourse;
 
             for (let i = 1; i < nlData.length; i++) {
                 let status = (nlData[i][18] || "yes").toLowerCase();
@@ -223,10 +257,10 @@ const getDashboardData = async (req, res) => {
                 let rowCourse = (nlData[i][4] || "all").toLowerCase();
                 let isCourseMatch = false;
 
+                // CHECK MATCH AGAINST MAPPED MAIN COURSE OR EXACT SUBCOURSE
                 if (rowCourse.includes("all") || rowCourse === "") isCourseMatch = true;
-                else if (cleanStudentCourse && rowCourse.includes(cleanStudentCourse)) isCourseMatch = true;
-                else if (isStudentIT && rowCourse.includes("information technology")) isCourseMatch = true;
-                else if (cleanStudentCourse) isCourseMatch = cleanStudentCourse.split(" ").some(w => w.length > 3 && rowCourse.includes(w));
+                else if (rowCourse.includes(studentMainCourse) || studentMainCourse.includes(rowCourse)) isCourseMatch = true;
+                else if (rowCourse.includes(cleanStudentSubcourse) || cleanStudentSubcourse.includes(rowCourse)) isCourseMatch = true;
 
                 if (!isCourseMatch) continue;
                 
@@ -279,7 +313,6 @@ const getDashboardData = async (req, res) => {
 
         const responsePayload = { success: true, userInfo, stats, appliedJobs, events, attendanceHistory, isScheduledToday, hasMarkedToday, vacancies, tpoInfo, driveRSVPs };
 
-        // 2. STORE RESPONSE IN RAM CACHE BEFORE SENDING
         cache.set(cacheKey, responsePayload);
 
         res.status(200).json(responsePayload);
@@ -338,9 +371,7 @@ const markAttendance = async (req, res) => {
             })
         );
 
-        // CLEAR RAM CACHE FOR THIS USER SO NEW ATTENDANCE SHOWS INSTANTLY
         cache.del(`dashboard_${email.toLowerCase().trim()}_${(branch || 'Bangalore').toLowerCase().trim()}`);
-
         res.status(200).json({ success: true, message: "Attendance marked successfully!" });
     } catch (error) { res.status(500).json({ success: false, message: "Failed to submit attendance." }); }
 };
@@ -372,9 +403,7 @@ const applyForJob = async (req, res) => {
             })
         );
 
-        // CLEAR RAM CACHE
         cache.del(`dashboard_${email.toLowerCase().trim()}_${(branch || 'Bangalore').toLowerCase().trim()}`);
-
         res.status(200).json({ success: true, message: "Applied successfully!" });
     } catch (error) { res.status(500).json({ success: false, message: "Failed to apply for job." }); }
 };
@@ -385,7 +414,7 @@ const updateProfile = async (req, res) => {
         const { googleSheets, auth } = await connectSheet();
         const spreadsheetId = process.env.SPREADSHEET_ID;
 
-        const getRows = await withRetry(() => googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: "Data!A:AD" }));
+        const getRows = await withRetry(() => googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: "Data!A:AF" }));
         const rows = getRows.data.values || [];
         let targetRowIndex = -1;
         
@@ -414,43 +443,22 @@ const updateProfile = async (req, res) => {
             })
         );
 
-        const updatedSheet = await withRetry(() => googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: `Data!A:AD` }));
+        const updatedSheet = await withRetry(() => googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: `Data!A:AF` }));
         const allRows = updatedSheet.data.values || [];
         const updatedRow = allRows[targetRowIndex - 1];
 
         const completeUserObj = {
-            name: updatedRow[1] || "Student",
-            phone: updatedRow[2] || "N/A",
-            email: updatedRow[3],
-            rollNo: updatedRow[5] || "N/A",
-            joiningDate: updatedRow[6] || "N/A",
-            course: updatedRow[7] || "N/A",
-            branch: updatedRow[8] || "Bangalore",
-            photo: updatedRow[9] || "",
-            homeTown: updatedRow[10] || "N/A",
-            qualification: updatedRow[11] || "N/A",
-            stream: updatedRow[12] || "N/A",
-            fresherStatus: updatedRow[13] || "N/A",
-            linkedin: updatedRow[14] || "N/A",
-            instagram: updatedRow[15] || "N/A",
-            placementReq: updatedRow[16] || "N/A",
-            friend1Name: updatedRow[17] || "N/A",
-            friend1Phone: updatedRow[18] || "N/A",
-            friend2Name: updatedRow[19] || "N/A",
-            friend2Phone: updatedRow[20] || "N/A",
-            resume: updatedRow[21] || "N/A",
-            parentName: updatedRow[22] || "N/A",
-            parentContact: updatedRow[23] || "N/A",
-            studyStatus: updatedRow[24] || "Currently Studying",
-            completedDate: updatedRow[25] || "N/A",
-            age: updatedRow[26] || "N/A",
-            gender: updatedRow[27] || "N/A",
-            certificate: updatedRow[28] || "N/A",
-            vacancyOpen: updatedRow[29] || "No" ,
-            techExamAccess: userDataRows[i][32] || "No"
+            name: updatedRow[1] || "Student", phone: updatedRow[2] || "N/A", email: updatedRow[3], rollNo: updatedRow[5] || "N/A",
+            joiningDate: updatedRow[6] || "N/A", course: updatedRow[7] || "N/A", branch: updatedRow[8] || "Bangalore",
+            photo: updatedRow[9] || "", homeTown: updatedRow[10] || "N/A", qualification: updatedRow[11] || "N/A",
+            stream: updatedRow[12] || "N/A", fresherStatus: updatedRow[13] || "N/A", linkedin: updatedRow[14] || "N/A",
+            instagram: updatedRow[15] || "N/A", placementReq: updatedRow[16] || "N/A", friend1Name: updatedRow[17] || "N/A",
+            friend1Phone: updatedRow[18] || "N/A", friend2Name: updatedRow[19] || "N/A", friend2Phone: updatedRow[20] || "N/A",
+            resume: updatedRow[21] || "N/A", parentName: updatedRow[22] || "N/A", parentContact: updatedRow[23] || "N/A",
+            studyStatus: updatedRow[24] || "Currently Studying", completedDate: updatedRow[25] || "N/A", age: updatedRow[26] || "N/A",
+            gender: updatedRow[27] || "N/A", certificate: updatedRow[28] || "N/A", vacancyOpen: updatedRow[29] || "No"
         };
 
-        // CLEAR RAM CACHE
         cache.del(`dashboard_${email.toLowerCase().trim()}_${(branch || 'Bangalore').toLowerCase().trim()}`);
 
         res.status(200).json({ success: true, message: "Profile updated successfully!", user: completeUserObj });
@@ -468,13 +476,8 @@ const uploadDocument = async (req, res) => {
         const action = docType === 'Photo' ? 'updateProfilePhoto' : 'updateDocument';
 
         const response = await axios.post(process.env.APPS_SCRIPT_PHOTO_URL, { 
-            action: action,
-            email: email, 
-            rollNo: rollNo,
-            base64: base64Clean, 
-            docType: docType,
-            filename: `${rollNo}_${docType}`,
-            mimeType: docType === 'Photo' ? 'image/jpeg' : 'application/pdf',
+            action: action, email: email, rollNo: rollNo, base64: base64Clean, docType: docType,
+            filename: `${rollNo}_${docType}`, mimeType: docType === 'Photo' ? 'image/jpeg' : 'application/pdf',
             folderName: docType === 'Photo' ? 'Profile Photo' : (docType === 'Resume' ? 'Resumes' : 'Certificates')
         }, { timeout: 30000 });
         
@@ -502,26 +505,17 @@ const uploadDocument = async (req, res) => {
                 let columnLetter = docType === 'Photo' ? 'J' : (docType === 'Resume' ? 'V' : 'AC');
                 await withRetry(() => 
                     googleSheets.spreadsheets.values.update({
-                        auth, 
-                        spreadsheetId, 
-                        range: `Data!${columnLetter}${targetRowIndex}`,
-                        valueInputOption: "USER_ENTERED", 
-                        resource: { values: [[result.url]] }
+                        auth, spreadsheetId, range: `Data!${columnLetter}${targetRowIndex}`,
+                        valueInputOption: "USER_ENTERED", resource: { values: [[result.url]] }
                     })
                 );
             }
-        } catch (sheetUpdateErr) {
-            console.log("Failed to write document URL to sheet, but upload succeeded.", sheetUpdateErr);
-        }
+        } catch (sheetUpdateErr) {}
 
-        // CLEAR RAM CACHE
         cache.del(`dashboard_${email.toLowerCase().trim()}_${(branch || 'Bangalore').toLowerCase().trim()}`);
 
         res.status(200).json({ success: true, message: `${docType} uploaded successfully!`, url: result.url });
-    } catch (error) { 
-        console.error("Upload error details:", error.response?.data || error.message);
-        res.status(500).json({ success: false, message: error.response?.data?.message || "Node server failed to reach Google Apps Script." }); 
-    }
+    } catch (error) { res.status(500).json({ success: false, message: error.response?.data?.message || "Node server failed to reach Google Apps Script." }); }
 };
 
 const updatePassword = async (req, res) => {
@@ -530,7 +524,7 @@ const updatePassword = async (req, res) => {
         const { googleSheets, auth } = await connectSheet();
         const spreadsheetId = process.env.SPREADSHEET_ID;
 
-        const getRows = await withRetry(() => googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: "Data!A:AD" }));
+        const getRows = await withRetry(() => googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: "Data!A:AF" }));
         const rows = getRows.data.values || [];
         let targetRowIndex = -1;
         
@@ -545,9 +539,7 @@ const updatePassword = async (req, res) => {
         }
         if (targetRowIndex === -1) return res.status(404).json({ success: false, message: "User not found." });
 
-        await withRetry(() => 
-            googleSheets.spreadsheets.values.update({ auth, spreadsheetId, range: `Data!E${targetRowIndex}`, valueInputOption: "USER_ENTERED", resource: { values: [[newPassword]] } })
-        );
+        await withRetry(() => googleSheets.spreadsheets.values.update({ auth, spreadsheetId, range: `Data!E${targetRowIndex}`, valueInputOption: "USER_ENTERED", resource: { values: [[newPassword]] } }));
         res.status(200).json({ success: true, message: "Password updated successfully!" });
     } catch (error) { res.status(500).json({ success: false, message: "Failed to update password." }); }
 };
@@ -555,40 +547,15 @@ const updatePassword = async (req, res) => {
 const submitIssue = async (req, res) => {
     try {
         const { email, name, phone, rollNo, branch, course, issueDetails, location } = req.body;
-        
         const { googleSheets, auth } = await connectSheet();
         const spreadsheetId = process.env.SPREADSHEET_ID;
         const timestamp = new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" });
 
-        const newTicket = [
-            timestamp,                  // A: Timestamp
-            name,                       // B: Name
-            phone || "N/A",             // C: Contact Number
-            rollNo || "N/A",            // D: Roll No 
-            email,                      // E: Mail ID
-            branch || "Bangalore",      // F: Branch
-            course || "N/A",            // G: Course
-            location || "N/A",          // H: GPS Location
-            issueDetails,               // I: Issue Details
-            "Pending",                  // J: Status
-            ""                          // K: Remarks
-        ];
+        const newTicket = [ timestamp, name, phone || "N/A", rollNo || "N/A", email, branch || "Bangalore", course || "N/A", location || "N/A", issueDetails, "Pending", "" ];
 
-        await withRetry(() => 
-            googleSheets.spreadsheets.values.append({
-                auth, 
-                spreadsheetId, 
-                range: "Issues!A:K", 
-                valueInputOption: "USER_ENTERED",
-                resource: { values: [newTicket] },
-            })
-        );
-        
+        await withRetry(() => googleSheets.spreadsheets.values.append({ auth, spreadsheetId, range: "Issues!A:K", valueInputOption: "USER_ENTERED", resource: { values: [newTicket] }, }));
         res.status(200).json({ success: true, message: "Issue reported successfully!" });
-    } catch (error) { 
-        console.error("Submit Issue Error:", error);
-        res.status(500).json({ success: false, message: "Failed to submit issue." }); 
-    }
+    } catch (error) { res.status(500).json({ success: false, message: "Failed to submit issue." }); }
 };
 
 const submitDriveResponse = async (req, res) => {
@@ -596,7 +563,6 @@ const submitDriveResponse = async (req, res) => {
         const { driveId, title, name, phone, email, course, branch, qualification, resume, status } = req.body;
         const { googleSheets, auth } = await connectSheet();
         const spreadsheetId = process.env.SPREADSHEET_ID;
-        
         const targetDriveId = driveId || title || "N/A";
 
         try {
@@ -611,37 +577,11 @@ const submitDriveResponse = async (req, res) => {
 
         const timestamp = new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" });
 
-        await withRetry(() => 
-            googleSheets.spreadsheets.values.append({
-                auth, 
-                spreadsheetId, 
-                range: "Drive_Registration!A:J", 
-                valueInputOption: "USER_ENTERED",
-                resource: { 
-                    values: [[
-                        targetDriveId, 
-                        name || "N/A", 
-                        phone || "N/A", 
-                        email || "N/A", 
-                        course || "N/A", 
-                        branch || "N/A", 
-                        resume || "N/A", 
-                        qualification || "N/A", 
-                        status || "N/A",
-                        timestamp
-                    ]] 
-                },
-            })
-        );
+        await withRetry(() => googleSheets.spreadsheets.values.append({ auth, spreadsheetId, range: "Drive_Registration!A:J", valueInputOption: "USER_ENTERED", resource: { values: [[ targetDriveId, name || "N/A", phone || "N/A", email || "N/A", course || "N/A", branch || "N/A", resume || "N/A", qualification || "N/A", status || "N/A", timestamp ]] }, }));
 
-        // CLEAR RAM CACHE
         cache.del(`dashboard_${email.toLowerCase().trim()}_${(branch || 'Bangalore').toLowerCase().trim()}`);
-
         res.status(200).json({ success: true, message: `Status updated to: ${status}` });
-    } catch (error) {
-        console.error("Error recording drive response:", error);
-        res.status(500).json({ success: false, message: 'Failed to record response.' });
-    }
+    } catch (error) { res.status(500).json({ success: false, message: 'Failed to record response.' }); }
 };
 
 module.exports = { getDashboardData, markAttendance, applyForJob, updateProfile, uploadDocument, updatePassword, submitIssue, submitDriveResponse };
