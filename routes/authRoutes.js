@@ -5,6 +5,6 @@ const { registerUser, loginUser, getCourses, getBranches } = require('../control
 router.post('/register', registerUser);
 router.post('/login', loginUser);
 router.get('/courses', getCourses);
-router.get('/branches', getBranches); // NEW ROUTE
+router.get('/branches', getBranches);
 
 module.exports = router;
