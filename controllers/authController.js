@@ -182,7 +182,7 @@ const registerUser = async (req, res) => {
             String(formData.gender || "N/A"),              
             "N/A",                                         
             "", // FIX: Vacancy Open is now completely Blank by default                                   
-            "Yes",
+            "",
             "Pending"                                          
         ];
 
