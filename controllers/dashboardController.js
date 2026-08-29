@@ -87,7 +87,16 @@ const buildCourseMap = async (googleSheets, auth, spreadsheetId) => {
 
 function isSameDay(dateStr, now) {
     if (!dateStr) return false;
-    const parsedDate = new Date(dateStr.toString().replace(/,/g, '').replace(/\s+/g, ' ').trim());
+    let cleanStr = String(dateStr).replace(/,/g, '').replace(/\s+/g, ' ').trim();
+    let parts = cleanStr.split(/[-/]/);
+    let parsedDate;
+    if (parts.length === 3) {
+        if (parts[0].length <= 2) parsedDate = new Date(parts[2], parts[1] - 1, parts[0]);
+        else parsedDate = new Date(parts[0], parts[1] - 1, parts[2]);
+    } else {
+        parsedDate = new Date(cleanStr);
+    }
+    
     if (!isNaN(parsedDate.getTime())) {
         return (parsedDate.getDate() === now.getDate() && parsedDate.getMonth() === now.getMonth() && parsedDate.getFullYear() === now.getFullYear());
     }
@@ -165,6 +174,9 @@ const getDashboardData = async (req, res) => {
             }
         } catch(e) {}
 
+        // SECURE BRANCH FETCH: Always use the live Google Sheet branch over the frontend cache
+        const actualBranch = (userInfo.branch || branch || "Bangalore").toString().trim().toLowerCase();
+
         let appliedJobs = [], stats = { applied: 0, interviews: 0, offers: 0, attended: 0, totalConducted: 0, onLeave: 0 };
         try {
             const applySheet = await withRetry(() => googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: "Opening_Applied!A:O" }));
@@ -186,8 +198,9 @@ const getDashboardData = async (req, res) => {
             const evData = eventSheet.data.values || [];
             for (let i = 1; i < evData.length; i++) {
                 let evBranch = (evData[i][2] || "all").toLowerCase();
-                if (evBranch.includes("all") || evBranch.includes((branch || "Bangalore").toLowerCase())) {
-                    events.push({ 
+                // FIX: Check against the live actualBranch, not the cached request branch
+                if (evBranch.includes("all") || evBranch.includes(actualBranch)) {
+                    events.push({
                         date: evData[i][0] || "TBA", 
                         branch: evData[i][2] || "All", 
                         type: evData[i][3] || "GENERAL", 
@@ -221,7 +234,8 @@ const getDashboardData = async (req, res) => {
             const schedData = schedSheet.data.values || [];
             for (let i = 1; i < schedData.length; i++) {
                 const schedBranch = (schedData[i][2] || "").toLowerCase();
-                if (schedBranch.includes((branch || "bangalore").toLowerCase())) {
+                // FIX: Use actualBranch for accurate schedule counting
+                if (schedBranch.includes(actualBranch)) {
                     stats.totalConducted++;
                     if (isSameDay(schedData[i][0], now)) isScheduledToday = true;
                 }
@@ -297,8 +311,9 @@ const getDashboardData = async (req, res) => {
             
             for (let k = 1; k < contactData.length; k++) {
                 const assignedRegion = contactData[k][4] || "";
-                if (assignedRegion.toLowerCase().includes((branch || "Bangalore").toLowerCase()) || assignedRegion.toLowerCase().includes("all")) {
-                    tpoInfo = { 
+                // FIX: Use actualBranch for accurate TPO mapping
+                if (assignedRegion.toLowerCase().includes(actualBranch) || assignedRegion.toLowerCase().includes("all")) {
+                    tpoInfo = {
                         name: contactData[k][0] || "Placement Officer", 
                         phone: contactData[k][1] || "N/A", 
                         email: contactData[k][2] || "placement@ipcsglobal.com", 
