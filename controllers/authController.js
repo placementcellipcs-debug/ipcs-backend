@@ -82,7 +82,7 @@ const loginUser = async (req, res) => {
                     age: row[26] || "N/A",                     
                     gender: row[27] || "N/A",                  
                     certificate: row[28] || "N/A",             
-                    vacancyOpen: row[29] || "No" ,
+                    vacancyOpen: row[29] || "",
                     techExamAccess: row[32] || "No"              
                 };
                 break; 
@@ -150,6 +150,7 @@ const registerUser = async (req, res) => {
              } catch(e) { console.log("Photo upload failed:", e.message || e); }
         }
 
+        // UPDATE: Changed Index 29 (Vacancy Open) from "Yes" to "" (Blank)
         const newRow = [
             new Date().toLocaleString('en-GB'),            
             String(formData.name || "N/A"),                
@@ -180,7 +181,7 @@ const registerUser = async (req, res) => {
             String(formData.age || "N/A"),                 
             String(formData.gender || "N/A"),              
             "N/A",                                         
-            "Yes"                                          
+            ""                                            
         ];
 
         // WRAPPED WITH RETRY: Writing new user data to the sheet
@@ -207,7 +208,7 @@ const registerUser = async (req, res) => {
             branch: formData.branch || "Bangalore",
             course: formData.course || "N/A",
             photo: photoUrl || "",
-            vacancyOpen: "Yes"
+            vacancyOpen: ""
         };
 
         return res.status(200).json({ success: true, message: "Account created!", token, userObj });
@@ -217,15 +218,11 @@ const registerUser = async (req, res) => {
     }
 };
 
-// ... [Keep your existing loginUser and registerUser functions] ...
-
-// --- NEW FUNCTION TO FETCH COURSES ---
 const getCourses = async (req, res) => {
     try {
         const { googleSheets, auth } = await connectSheet();
         const spreadsheetId = process.env.SPREADSHEET_ID;
 
-        // Fetch data from the new "Courses" subsheet
         const getRows = await withRetry(() => 
             googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: "Courses!A:B" })
         );
@@ -239,14 +236,11 @@ const getCourses = async (req, res) => {
             const colB = rows[i][1] ? rows[i][1].trim() : "";
 
             if (colA) {
-                // If Col A has text, it's a new Category (strip numbers like "1. ")
                 currentCategory = colA.replace(/^\d+\.\s*/, ''); 
                 groupedCourses.push({ category: currentCategory, courses: [] });
             } else if (colB && groupedCourses.length > 0) {
-                // If Col B has text, add it as a course under the current Category
                 groupedCourses[groupedCourses.length - 1].courses.push(colB);
             } else if (colB && groupedCourses.length === 0) {
-                // Fallback if Col B has text but no category was set yet
                 groupedCourses.push({ category: currentCategory, courses: [colB] });
             }
         }
@@ -258,5 +252,48 @@ const getCourses = async (req, res) => {
     }
 };
 
-// Update the exports to include the new function
-module.exports = { loginUser, registerUser, getCourses };
+// --- NEW FUNCTION: Dynamically fetch Branches from Google Sheet ---
+const getBranches = async (req, res) => {
+    try {
+        const { googleSheets, auth } = await connectSheet();
+        const spreadsheetId = process.env.SPREADSHEET_ID;
+
+        // Fetch data from the new "Branches" subsheet (Columns B & C)
+        const getRows = await withRetry(() => 
+            googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: "Branches!B:C" })
+        );
+        
+        const rows = getRows.data.values || [];
+        let groupedBranches = [];
+
+        // Loop through rows (skip header row if present, assuming row 0 is header)
+        for (let i = 1; i < rows.length; i++) {
+            const region = rows[i][0] ? rows[i][0].toString().trim() : "";
+            const branchName = rows[i][1] ? rows[i][1].toString().trim() : "";
+
+            if (region !== "") {
+                // Find if the region already exists in our array
+                let regionObj = groupedBranches.find(g => g.region === region);
+                
+                // If it doesn't exist, create it
+                if (!regionObj) {
+                    regionObj = { region: region, branches: [] };
+                    groupedBranches.push(regionObj);
+                }
+                
+                // Add the branch to the region
+                if (branchName !== "") {
+                    regionObj.branches.push(branchName);
+                }
+            }
+        }
+
+        return res.status(200).json({ success: true, groupedBranches });
+    } catch (error) {
+        console.error("Fetch Branches Error:", error);
+        return res.status(500).json({ success: false, message: "Server error fetching branches." });
+    }
+};
+
+// Update the exports to include the new getBranches function
+module.exports = { loginUser, registerUser, getCourses, getBranches };

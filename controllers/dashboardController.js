@@ -388,10 +388,10 @@ const applyForJob = async (req, res) => {
             const nlSheet = await withRetry(() => googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: "NewsLetter!A:U" }));
             const nlData = nlSheet.data.values || [];
             for (let i = 1; i < nlData.length; i++) {
-                let currentId = nlData[i][19] || nlData[i][20] || `JOB-${1000 + i}`;
+                let currentId = getCol(nlData[i], 19, "") || getCol(nlData[i], 20, "") || `JOB-${1000 + i}`;
                 if (currentId.toString().trim() === jobId.toString().trim()) {
-                    position = nlData[i][5] || "N/A"; 
-                    placementOfficer = nlData[i][17] || "TPO Auto-Assigned"; break;
+                    position = getCol(nlData[i], 5, "N/A"); 
+                    placementOfficer = getCol(nlData[i], 17, "TPO Auto-Assigned"); break;
                 }
             }
         } catch (e) { }
@@ -404,7 +404,7 @@ const applyForJob = async (req, res) => {
             })
         );
 
-        // 2. NEW: Write the synchronized record to TPO_Log (Columns A through Q)
+        // 2. Write the synchronized record to TPO_Log (Now exactly 22 columns A to V)
         const newTpoLogRow = [
             timestamp,                 // A: TimeStamp
             name || "Student",         // B: Student Name
@@ -417,23 +417,30 @@ const applyForJob = async (req, res) => {
             resume || "N/A",           // I: Resume
             jobId,                     // J: Job ID
             companyName || "N/A",      // K: Company Name
-            placementOfficer,          // L: Placement Officer
-            "Applied",                 // M: Status
-            "",                        // N: Remarks
-            "",                        // O: DATE PLACED
-            "",                        // P: PACKAGE (LPA)
-            ""                         // Q: Offer Letter Status
+            position || "N/A",         // L: Position
+            placementOfficer,          // M: Placement Officer
+            "Applied",                 // N: Status
+            "",                        // O: Interview Date
+            "",                        // P: Interview Time
+            "",                        // Q: Interview Venue
+            "",                        // R: Remarks
+            "",                        // S: DATE PLACED
+            "",                        // T: PACKAGE (LPA)
+            "",                        // U: Offer Letter Status
+            ""                         // V: Joining Status
         ];
 
         await withRetry(() => 
             googleSheets.spreadsheets.values.append({
-                auth, spreadsheetId, range: "TPO_Log!A:Q", valueInputOption: "USER_ENTERED",
+                auth, spreadsheetId, range: "TPO_Log!A:V", valueInputOption: "USER_ENTERED",
                 resource: { values: [newTpoLogRow] },
             })
         );
 
         // CLEAR RAM CACHE
-        cache.del(`dashboard_${email.toLowerCase().trim()}_${(branch || 'Bangalore').toLowerCase().trim()}`);
+        if (cache && typeof cache.del === 'function') {
+            cache.del(`dashboard_${email.toLowerCase().trim()}_${(branch || 'Bangalore').toLowerCase().trim()}`);
+        }
 
         res.status(200).json({ success: true, message: "Applied successfully!" });
     } catch (error) { 
