@@ -536,7 +536,8 @@ const uploadDocument = async (req, res) => {
             ? base64.replace(/^data:image\/\w+;base64,/, "") 
             : base64.replace(/^data:application\/pdf;base64,/, "");
         
-        const action = docType === 'Photo' ? 'updateProfilePhoto' : 'updateDocument';
+        // FIX: Force Apps Script to bypass its broken delete logic and just upload the file
+        const action = 'uploadOnly';
 
         const response = await axios.post(process.env.APPS_SCRIPT_PHOTO_URL, { 
             action: action, email: email, rollNo: rollNo, base64: base64Clean, docType: docType,
