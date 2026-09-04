@@ -40,9 +40,8 @@ const getAptitudeTest = async (req, res) => {
                     B: rows[i][4] || "",
                     C: rows[i][5] || "",
                     D: rows[i][6] || ""
-                },
-                answer: (rows[i][7] || "A").toString().trim(),
-                explanation: (rows[i][8] || "").toString().trim()
+                }
+                // SECURITY FIX: Removed "answer" and "explanation" so students cannot cheat by inspecting the browser network tab.
             });
         }
 

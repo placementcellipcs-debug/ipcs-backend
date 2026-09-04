@@ -103,9 +103,12 @@ const streamMaterialPdf = async (req, res) => {
         if (embedUrl.includes('drive.google.com') || embedUrl.includes('docs.google.com')) {
             const fileIdMatch = embedUrl.match(/(?:id=|\/d\/)([\w-]+)/);
             if (fileIdMatch && fileIdMatch[1]) {
-                embedUrl = `https://docs.google.com/presentation/d/${fileIdMatch[1]}/embed?start=false&loop=false`;
+                // FIX: Check if it's a presentation, otherwise load it properly as a standard Drive Preview (fixes PDFs)
+                embedUrl = embedUrl.includes('presentation')
+                    ? `https://docs.google.com/presentation/d/${fileIdMatch[1]}/embed?start=false&loop=false`
+                    : `https://drive.google.com/file/d/${fileIdMatch[1]}/preview`;
             }
-        } 
+        }
         // --- FORMAT SHAREPOINT / ONEDRIVE LINKS ---
         else if (embedUrl.includes('sharepoint.com') || embedUrl.includes('onedrive.live.com')) {
             // Automatically appends Microsoft's embed command to your sheet links
