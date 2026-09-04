@@ -100,21 +100,28 @@ const buildCourseMap = async (googleSheets, auth, spreadsheetId) => {
 function isSameDay(dateStr, now) {
     if (!dateStr) return false;
     let cleanStr = String(dateStr).replace(/,/g, '').replace(/\s+/g, ' ').trim();
-    let parts = cleanStr.split(/[-/]/);
-    let parsedDate;
     
-    if (parts.length === 3) {
-        if (parts[0].length <= 2) {
-            parsedDate = new Date(parts[2], parts[1] - 1, parts[0]);
-        } else {
-            parsedDate = new Date(parts[0], parts[1] - 1, parts[2]);
+    // 1. Try parsing MM/DD/YYYY directly (Google Sheets format)
+    let parsedDate = new Date(cleanStr);
+    
+    // 2. Fallback for DD/MM/YYYY if parsing fails or invalid
+    if (isNaN(parsedDate.getTime())) {
+        let parts = cleanStr.split(/[-/]/);
+        if (parts.length === 3) {
+            if (parts[0].length <= 2) {
+                parsedDate = new Date(parts[2], parts[1] - 1, parts[0]);
+            } else {
+                parsedDate = new Date(parts[0], parts[1] - 1, parts[2]);
+            }
         }
-    } else {
-        parsedDate = new Date(cleanStr);
     }
     
     if (!isNaN(parsedDate.getTime())) {
-        return (parsedDate.getDate() === now.getDate() && parsedDate.getMonth() === now.getMonth() && parsedDate.getFullYear() === now.getFullYear());
+        return (
+            parsedDate.getDate() === now.getDate() &&
+            parsedDate.getMonth() === now.getMonth() &&
+            parsedDate.getFullYear() === now.getFullYear()
+        );
     }
     return false;
 }
