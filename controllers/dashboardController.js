@@ -4,10 +4,10 @@ const NodeCache = require('node-cache');
 const bcrypt = require('bcryptjs'); 
 const nodemailer = require('nodemailer'); 
 
-// Initialize NodeCache: Time-To-Live (TTL) is 5 seconds to prevent rate limits
-const cache = new NodeCache({ stdTTL: 5, checkperiod: 120 });
+// 🛡️ GLOBAL CACHE: Stores sheets in RAM for 60 seconds to prevent Google API crashes
+const cache = new NodeCache({ stdTTL: 60, checkperiod: 120 });
 
-// Exponential Backoff Retry Function to handle Google Sheets API limits gracefully
+// Exponential Backoff Retry Function
 const withRetry = async (fn, retries = 5, delay = 1000) => {
     for (let i = 0; i < retries; i++) {
         try {
@@ -21,6 +21,18 @@ const withRetry = async (fn, retries = 5, delay = 1000) => {
             delay *= 2;
         }
     }
+};
+
+// 🚀 NEW GLOBAL SHEET FETCHER: Drastically reduces API calls by using RAM memory
+const getCachedSheet = async (googleSheets, auth, spreadsheetId, range) => {
+    const cacheKey = `SHEET_${range}`;
+    let data = cache.get(cacheKey);
+    if (data) return data; // Return instantly from RAM if available
+
+    const response = await withRetry(() => googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range }));
+    data = response.data.values || [];
+    cache.set(cacheKey, data); // Save to RAM
+    return data;
 };
 
 // Geofencing Coordinates
@@ -63,8 +75,7 @@ const BRANCH_LOCATIONS = {
 // Helper: Maps Subcourses to Main Courses
 const buildCourseMap = async (googleSheets, auth, spreadsheetId) => {
     try {
-        const getRows = await withRetry(() => googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: "Courses!A:B" }));
-        const rows = getRows.data.values || [];
+        const rows = await getCachedSheet(googleSheets, auth, spreadsheetId, "Courses!A:B");
         let courseMap = {};
         let currentMainCourse = "";
 
@@ -117,7 +128,6 @@ function calculateDistanceInMeters(lat1, lon1, lat2, lon2) {
     return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
 }
 
-// Safe helper for reading Google Sheet row indexes
 const getCol = (row, idx, fallback = "") => (row && row[idx] !== undefined && row[idx] !== null) ? row[idx].toString().trim() : fallback;
 
 
@@ -130,6 +140,7 @@ const getDashboardData = async (req, res) => {
         const { branch } = req.body;
         const cacheKey = `dashboard_${email.toLowerCase().trim()}_${(branch || 'Bangalore').toLowerCase().trim()}`;
 
+        // Return from memory if it exists and is less than 60 seconds old
         const cachedDashboard = cache.get(cacheKey);
         if (cachedDashboard) {
             return res.status(200).json(cachedDashboard);
@@ -138,21 +149,20 @@ const getDashboardData = async (req, res) => {
         const { googleSheets, auth } = await connectSheet();
         const spreadsheetId = process.env.SPREADSHEET_ID;
 
-        // HIGH PERFORMANCE: Promise.all fetches all 9 sheets at the exact same time
-        const [courseMap, dataReq, applyReq, eventReq, driveReq, schedReq, attReq, nlReq, contactReq] = await Promise.all([
+        // 🚀 HIGH PERFORMANCE: Promise.all fetches all 9 sheets via RAM cache instantly
+        const [courseMap, userDataRows, appData, evData, driveData, schedData, attData, nlData, contactData] = await Promise.all([
             buildCourseMap(googleSheets, auth, spreadsheetId),
-            withRetry(() => googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: "Data!A:AF" })),
-            withRetry(() => googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: "Opening_Applied!A:O" })),
-            withRetry(() => googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: "Event!A:K" })),
-            withRetry(() => googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: "Drive_Registration!A:J" })),
-            withRetry(() => googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: "Talentino_Schedule!A:D" })),
-            withRetry(() => googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: "Talentino_Attendance!A:J" })),
-            withRetry(() => googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: "NewsLetter!A:U" })),
-            withRetry(() => googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: "Contact!A:H" }))
+            getCachedSheet(googleSheets, auth, spreadsheetId, "Data!A:AF"),
+            getCachedSheet(googleSheets, auth, spreadsheetId, "Opening_Applied!A:O"),
+            getCachedSheet(googleSheets, auth, spreadsheetId, "Event!A:K"),
+            getCachedSheet(googleSheets, auth, spreadsheetId, "Drive_Registration!A:J"),
+            getCachedSheet(googleSheets, auth, spreadsheetId, "Talentino_Schedule!A:D"),
+            getCachedSheet(googleSheets, auth, spreadsheetId, "Talentino_Attendance!A:J"),
+            getCachedSheet(googleSheets, auth, spreadsheetId, "NewsLetter!A:U"),
+            getCachedSheet(googleSheets, auth, spreadsheetId, "Contact!A:H")
         ]);
 
         let userInfo = {};
-        const userDataRows = dataReq.data.values || [];
         for (let i = userDataRows.length - 1; i >= 1; i--) {
             const rowEmail = userDataRows[i][3] || "";
             if (rowEmail.toLowerCase() === email.toLowerCase()) {
@@ -195,7 +205,6 @@ const getDashboardData = async (req, res) => {
         // 1. Process Applied Jobs
         let appliedJobs = [];
         let stats = { applied: 0, interviews: 0, offers: 0, attended: 0, totalConducted: 0, onLeave: 0 };
-        const appData = applyReq.data.values || [];
         
         for (let i = 1; i < appData.length; i++) {
             if (appData[i][3] && appData[i][3].toLowerCase() === email.toLowerCase()) {
@@ -215,8 +224,6 @@ const getDashboardData = async (req, res) => {
 
         // 2. Process Events
         let events = [];
-        const evData = eventReq.data.values || [];
-        
         for (let i = 1; i < evData.length; i++) {
             let evBranch = (evData[i][2] || "all").toLowerCase();
             if (evBranch.includes("all") || evBranch.includes(actualBranch)) {
@@ -237,8 +244,6 @@ const getDashboardData = async (req, res) => {
 
         // 3. Process Drive RSVPs
         let driveRSVPs = [];
-        const driveData = driveReq.data.values || [];
-        
         for (let i = 1; i < driveData.length; i++) {
             if (driveData[i][3] && driveData[i][3].toLowerCase() === email.toLowerCase()) {
                 driveRSVPs.push({ 
@@ -255,7 +260,6 @@ const getDashboardData = async (req, res) => {
         const now = new Date();
         const todayStr = now.toLocaleDateString('en-GB');
         
-        const schedData = schedReq.data.values || [];
         for (let i = 1; i < schedData.length; i++) {
             const schedBranch = (schedData[i][2] || "").toLowerCase();
             if (schedBranch.includes(actualBranch)) {
@@ -266,7 +270,6 @@ const getDashboardData = async (req, res) => {
             }
         }
         
-        const attData = attReq.data.values || [];
         for (let i = 1; i < attData.length; i++) {
             if (attData[i][1] && attData[i][1].toLowerCase() === email.toLowerCase()) {
                 stats.attended++;
@@ -290,7 +293,6 @@ const getDashboardData = async (req, res) => {
 
         // 5. Process Job Vacancies
         let vacancies = [];
-        const nlData = nlReq.data.values || [];
         const cleanStudentSubcourse = (userInfo.course || "").trim().toLowerCase();
         const studentMainCourse = courseMap[cleanStudentSubcourse] || cleanStudentSubcourse;
 
@@ -344,7 +346,6 @@ const getDashboardData = async (req, res) => {
             profilePhoto: "" 
         };
         
-        const contactData = contactReq.data.values || [];
         for (let k = 1; k < contactData.length; k++) {
             const assignedRegion = contactData[k][4] || "";
             if (assignedRegion.toLowerCase().includes(actualBranch) || assignedRegion.toLowerCase().includes("all")) {
@@ -390,7 +391,7 @@ const getDashboardData = async (req, res) => {
 // ==========================================
 const markAttendance = async (req, res) => {
     try {
-        const email = req.user?.email || req.body.email; // 🛡️ Secure Auth Extraction
+        const email = req.user?.email || req.body.email; 
         const { name, branch, course, rating, location, feedback, userLat, userLng } = req.body;
         const { googleSheets, auth } = await connectSheet();
         const spreadsheetId = process.env.SPREADSHEET_ID;
@@ -404,8 +405,7 @@ const markAttendance = async (req, res) => {
         const isTimeValid = (currentTimeMins >= (9 * 60 + 30) && currentTimeMins <= (19 * 60));
 
         let isScheduledToday = false;
-        const schedSheet = await withRetry(() => googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: "Talentino_Schedule!A:D" }));
-        const schedData = schedSheet.data.values || [];
+        const schedData = await getCachedSheet(googleSheets, auth, spreadsheetId, "Talentino_Schedule!A:D");
         for (let i = 1; i < schedData.length; i++) {
             if ((schedData[i][2] || "").toLowerCase().includes((branch || "").toLowerCase()) && isSameDay(schedData[i][0], now)) {
                 isScheduledToday = true; 
@@ -424,8 +424,7 @@ const markAttendance = async (req, res) => {
         }
 
         let alreadyMarked = false;
-        const attSheet = await withRetry(() => googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: "Talentino_Attendance!A:J" }));
-        const attData = attSheet.data.values || [];
+        const attData = await getCachedSheet(googleSheets, auth, spreadsheetId, "Talentino_Attendance!A:J");
         for (let i = 1; i < attData.length; i++) {
             if (attData[i][1] && attData[i][1].toLowerCase() === email.toLowerCase()) {
                 if (attData[i][8] === dateOnly || attData[i][0].includes(dateOnly)) { 
@@ -448,7 +447,7 @@ const markAttendance = async (req, res) => {
             })
         );
 
-        cache.del(`dashboard_${email.toLowerCase().trim()}_${(branch || 'Bangalore').toLowerCase().trim()}`);
+        cache.flushAll(); // Reset cache globally on successful submission
         return res.status(200).json({ success: true, message: "Attendance marked successfully!" });
     } catch (error) { 
         return res.status(500).json({ success: false, message: "Failed to submit attendance." }); 
@@ -460,15 +459,13 @@ const markAttendance = async (req, res) => {
 // ==========================================
 const applyForJob = async (req, res) => {
     try {
-        const email = req.user?.email || req.body.email; // 🛡️ Secure Auth Extraction
+        const email = req.user?.email || req.body.email; 
         const { jobId, companyName, name, phone, rollNo, course, branch, qualification, resume } = req.body;
         const { googleSheets, auth } = await connectSheet();
         const spreadsheetId = process.env.SPREADSHEET_ID;
         const timestamp = new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" });
 
-        // 🛡️ DATA INTEGRITY: Prevent Double-Applying
-        const checkSheet = await withRetry(() => googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: "Opening_Applied!A:J" }));
-        const checkData = checkSheet.data.values || [];
+        const checkData = await getCachedSheet(googleSheets, auth, spreadsheetId, "Opening_Applied!A:J");
         for (let i = 1; i < checkData.length; i++) {
             if (getCol(checkData[i], 3, "").toLowerCase() === email.toLowerCase() && getCol(checkData[i], 9, "") === jobId) {
                 return res.status(400).json({ success: false, message: "You have already applied for this job opening." });
@@ -476,18 +473,15 @@ const applyForJob = async (req, res) => {
         }
 
         let position = "N/A", placementOfficer = "TPO Auto-Assigned";
-        try {
-            const nlSheet = await withRetry(() => googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: "NewsLetter!A:U" }));
-            const nlData = nlSheet.data.values || [];
-            for (let i = 1; i < nlData.length; i++) {
-                let currentId = getCol(nlData[i], 19, "") || getCol(nlData[i], 20, "") || `JOB-${1000 + i}`;
-                if (currentId.toString().trim() === jobId.toString().trim()) {
-                    position = getCol(nlData[i], 5, "N/A"); 
-                    placementOfficer = getCol(nlData[i], 17, "TPO Auto-Assigned"); 
-                    break;
-                }
+        const nlData = await getCachedSheet(googleSheets, auth, spreadsheetId, "NewsLetter!A:U");
+        for (let i = 1; i < nlData.length; i++) {
+            let currentId = getCol(nlData[i], 19, "") || getCol(nlData[i], 20, "") || `JOB-${1000 + i}`;
+            if (currentId.toString().trim() === jobId.toString().trim()) {
+                position = getCol(nlData[i], 5, "N/A"); 
+                placementOfficer = getCol(nlData[i], 17, "TPO Auto-Assigned"); 
+                break;
             }
-        } catch (e) { }
+        }
 
         await withRetry(() => 
             googleSheets.spreadsheets.values.append({
@@ -508,7 +502,7 @@ const applyForJob = async (req, res) => {
             })
         );
 
-        cache.del(`dashboard_${email.toLowerCase().trim()}_${(branch || 'Bangalore').toLowerCase().trim()}`);
+        cache.flushAll(); 
         return res.status(200).json({ success: true, message: "Applied successfully!" });
     } catch (error) { 
         return res.status(500).json({ success: false, message: "Failed to apply for job." }); 
@@ -520,13 +514,12 @@ const applyForJob = async (req, res) => {
 // ==========================================
 const updateProfile = async (req, res) => {
     try {
-        const email = req.user?.email || req.body.email; // 🛡️ Secure Auth Extraction
+        const email = req.user?.email || req.body.email; 
         const { age, gender, studyStatus, completedDate, stream, homeTown, fresherStatus, qualification, linkedin, instagram, placementReq, parentName, parentContact, branch } = req.body;
         const { googleSheets, auth } = await connectSheet();
         const spreadsheetId = process.env.SPREADSHEET_ID;
 
-        const getRows = await withRetry(() => googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: "Data!A:AF" }));
-        const rows = getRows.data.values || [];
+        const rows = await getCachedSheet(googleSheets, auth, spreadsheetId, "Data!A:AF");
         let targetRowIndex = -1;
         
         for (let i = rows.length - 1; i >= 1; i--) {
@@ -567,7 +560,7 @@ const updateProfile = async (req, res) => {
             vacancyOpen: getCol(updatedRow, 29, "Yes"), studyMaterialAccess: getCol(updatedRow, 30, "Yes"), placementStatus: getCol(updatedRow, 31, "Pending"), techExamAccess: "Yes"
         };
 
-        cache.del(`dashboard_${email.toLowerCase().trim()}_${(branch || 'Bangalore').toLowerCase().trim()}`);
+        cache.flushAll(); 
         return res.status(200).json({ success: true, message: "Profile updated successfully!", user: completeUserObj });
     } catch (error) { 
         return res.status(500).json({ success: false, message: "Failed to update profile." }); 
@@ -579,7 +572,7 @@ const updateProfile = async (req, res) => {
 // ==========================================
 const uploadDocument = async (req, res) => {
     try {
-        const email = req.user?.email || req.body.email; // 🛡️ Secure Auth Extraction
+        const email = req.user?.email || req.body.email; 
         const { rollNo, base64, docType, branch } = req.body;
         
         const base64Clean = docType === 'Photo' ? base64.replace(/^data:image\/\w+;base64,/, "") : base64.replace(/^data:application\/pdf;base64,/, "");
@@ -598,8 +591,7 @@ const uploadDocument = async (req, res) => {
         try {
             const { googleSheets, auth } = await connectSheet();
             const spreadsheetId = process.env.SPREADSHEET_ID;
-            const getRows = await withRetry(() => googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: "Data!A:D" }));
-            const rows = getRows.data.values || [];
+            const rows = await getCachedSheet(googleSheets, auth, spreadsheetId, "Data!A:D");
             let targetRowIndex = -1;
             
             for (let i = rows.length - 1; i >= 1; i--) {
@@ -621,7 +613,7 @@ const uploadDocument = async (req, res) => {
             console.log("Failed to write to sheet but upload succeeded.");
         }
 
-        cache.del(`dashboard_${email.toLowerCase().trim()}_${(branch || 'Bangalore').toLowerCase().trim()}`);
+        cache.flushAll(); 
         return res.status(200).json({ success: true, message: `${docType} uploaded successfully!`, url: response.data.url });
     } catch (error) { 
         return res.status(500).json({ success: false, message: "Server error during upload." }); 
@@ -633,13 +625,12 @@ const uploadDocument = async (req, res) => {
 // ==========================================
 const updatePassword = async (req, res) => {
     try {
-        const email = req.user?.email || req.body.email; // 🛡️ Secure Auth Extraction
+        const email = req.user?.email || req.body.email; 
         const { currentPassword, newPassword } = req.body;
         const { googleSheets, auth } = await connectSheet();
         const spreadsheetId = process.env.SPREADSHEET_ID;
 
-        const getRows = await withRetry(() => googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: "Data!A:AF" }));
-        const rows = getRows.data.values || [];
+        const rows = await getCachedSheet(googleSheets, auth, spreadsheetId, "Data!A:AF");
         let targetRowIndex = -1;
         
         for (let i = rows.length - 1; i >= 1; i--) {
@@ -671,6 +662,7 @@ const updatePassword = async (req, res) => {
             })
         );
         
+        cache.flushAll(); 
         return res.status(200).json({ success: true, message: "Password updated successfully!" });
     } catch (error) { 
         return res.status(500).json({ success: false, message: "Failed to update password." }); 
@@ -682,7 +674,7 @@ const updatePassword = async (req, res) => {
 // ==========================================
 const submitIssue = async (req, res) => {
     try {
-        const email = req.user?.email || req.body.email; // 🛡️ Secure Auth Extraction
+        const email = req.user?.email || req.body.email; 
         const { name, phone, rollNo, branch, course, issueDetails, location } = req.body;
         const { googleSheets, auth } = await connectSheet();
         const spreadsheetId = process.env.SPREADSHEET_ID;
@@ -707,21 +699,18 @@ const submitIssue = async (req, res) => {
 // ==========================================
 const submitDriveResponse = async (req, res) => {
     try {
-        const email = req.user?.email || req.body.email; // 🛡️ Secure Auth Extraction
+        const email = req.user?.email || req.body.email; 
         const { driveId, title, name, phone, course, branch, qualification, resume, status, tpoBranch } = req.body;
         const { googleSheets, auth } = await connectSheet();
         const spreadsheetId = process.env.SPREADSHEET_ID;
         const targetDriveId = driveId || title || "N/A";
 
-        try {
-            const checkSheet = await withRetry(() => googleSheets.spreadsheets.values.get({ auth, spreadsheetId, range: "Drive_Registration!A:D" }));
-            const rows = checkSheet.data.values || [];
-            for (let i = 1; i < rows.length; i++) {
-                if (rows[i][0] === targetDriveId && (rows[i][3] || "").toLowerCase() === email.toLowerCase()) {
-                    return res.status(400).json({ success: false, message: 'You have already submitted a response for this drive.' });
-                }
+        const rows = await getCachedSheet(googleSheets, auth, spreadsheetId, "Drive_Registration!A:D");
+        for (let i = 1; i < rows.length; i++) {
+            if (rows[i][0] === targetDriveId && (rows[i][3] || "").toLowerCase() === email.toLowerCase()) {
+                return res.status(400).json({ success: false, message: 'You have already submitted a response for this drive.' });
             }
-        } catch (e) {}
+        }
 
         const timestamp = new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" });
         
@@ -732,7 +721,6 @@ const submitDriveResponse = async (req, res) => {
             })
         );
 
-        // 🚀 APPS SCRIPT WEBHOOK DISPATCH
         if (process.env.APPS_SCRIPT_URL) {
             try {
                 await axios.post(process.env.APPS_SCRIPT_URL, {
@@ -744,7 +732,6 @@ const submitDriveResponse = async (req, res) => {
             }
         }
 
-        // ✉️ NODEMAILER AUTOMATED CONFIRMATION EMAIL
         if (status === 'Registered' && process.env.EMAIL_USER && process.env.EMAIL_PASS) {
             try {
                 const transporter = nodemailer.createTransport({
@@ -785,7 +772,7 @@ const submitDriveResponse = async (req, res) => {
             }
         }
 
-        cache.del(`dashboard_${email.toLowerCase().trim()}_${(branch || 'Bangalore').toLowerCase().trim()}`);
+        cache.flushAll(); 
         return res.status(200).json({ success: true, message: `Status updated to: ${status}` });
     } catch (error) { 
         return res.status(500).json({ success: false, message: 'Failed to record response.' }); 
