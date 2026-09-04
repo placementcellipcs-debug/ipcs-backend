@@ -2,6 +2,7 @@ const connectSheet = require('../config/db');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const NodeCache = require('node-cache');
+const axios = require('axios');
 
 // 10-minute cache for static metadata to conserve Google Sheets API read quota
 const authCache = new NodeCache({ stdTTL: 600, checkperiod: 120 });
@@ -101,19 +102,31 @@ const registerUser = async (req, res) => {
             const existingEmail = getVal(rows[i], headers, ["email", "mail"], 3, "");
             if (existingEmail && existingEmail.toLowerCase() === cleanEmail) {
                 return res.status(400).json({ success: false, message: "An account with this email already exists." });
+
             }
         }
 
         let photoUrl = "";
         if (formData.photoBase64) {
              try {
-                 const photoResponse = await fetch(process.env.APPS_SCRIPT_PHOTO_URL, {
-                     method: 'POST', headers: { 'Content-Type': 'application/json' },
-                     body: JSON.stringify({ action: "uploadOnly", base64: formData.photoBase64.replace(/^data:image\/\w+;base64,/, ""), filename: `${formData.rollNo || 'Profile'}_Profile.jpg`, folderName: "Profile Photo", mimeType: "image/jpeg" })
-                 });
-                 const photoResult = await photoResponse.json();
-                 if (photoResult?.success) photoUrl = photoResult.url;
-             } catch(e) {}
+                 const response = await axios.post(process.env.APPS_SCRIPT_PHOTO_URL, {
+                     action: "uploadOnly", 
+                     base64: formData.photoBase64.replace(/^data:image\/\w+;base64,/, ""), 
+                     filename: `${formData.rollNo || 'Profile'}_Profile.jpg`, 
+                     folderName: "Profile Photo", 
+                     mimeType: "image/jpeg",
+                     folderId: process.env.DRIVE_FOLDER_ID,
+                     parentFolderId: process.env.DRIVE_FOLDER_ID
+                 }, { timeout: 30000 });
+                 
+                 if (response.data && response.data.success) {
+                     photoUrl = response.data.url;
+                 } else {
+                     console.error("Drive upload failed:", response.data);
+                 }
+             } catch(e) {
+                 console.error("Photo upload error during registration:", e.message);
+             }
         }
 
         const salt = await bcrypt.genSalt(10);

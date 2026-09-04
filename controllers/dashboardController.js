@@ -588,7 +588,9 @@ const uploadDocument = async (req, res) => {
         const response = await axios.post(process.env.APPS_SCRIPT_PHOTO_URL, { 
             action: action, email: email, rollNo: rollNo, base64: base64Clean, docType: docType,
             filename: `${rollNo}_${docType}`, mimeType: docType === 'Photo' ? 'image/jpeg' : 'application/pdf',
-            folderName: docType === 'Photo' ? 'Profile Photo' : (docType === 'Resume' ? 'Resumes' : 'Certificates')
+            folderName: docType === 'Photo' ? 'Profile Photo' : (docType === 'Resume' ? 'Resumes' : 'Certificates'),
+            folderId: process.env.DRIVE_FOLDER_ID,
+            parentFolderId: process.env.DRIVE_FOLDER_ID
         }, { timeout: 30000 });
         
         if (!response.data || !response.data.success) {
