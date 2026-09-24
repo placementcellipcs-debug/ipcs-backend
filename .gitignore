@@ -5,5 +5,5 @@ node_modules/
 .env
 
 # MacOS junk files (just in case you are on a Mac)
-.DS_Store
+.DS_Storeg
 google-credentials.json
